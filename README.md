@@ -21,11 +21,11 @@ You can paste raw GeoJSON, or upload a `.json` / `.geojson` / `.txt` / `.docx` f
 
 Overall view of the app:
 
-![GeoJSON Loader main view](public/SS1.PNG)
+![GeoJSON Loader main view](public/ss1.png)
 
 Example with loaded GeoJSON data:
 
-![GeoJSON Loader with data](public/SS2.PNG)
+![GeoJSON Loader with data](public/ss2.png)
 
 ### Tech stack
 
