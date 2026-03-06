@@ -1,0 +1,780 @@
+/* ============================================
+   GeoJSON Loader - Styles
+   ============================================ */
+
+/* Global */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Map Container */
+.map-container {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ============================================
+   Panel Toggle Button
+   ============================================ */
+.panel-toggle-btn {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  background: #ffffff;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #DADCE0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.panel-toggle-btn:hover {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* ============================================
+   Loader Panel
+   ============================================ */
+.loader-panel {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  background: #ffffff;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.08);
+  width: 20rem;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.panel-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #202124;
+  letter-spacing: -0.5px;
+}
+
+.panel-close-btn {
+  color: #5F6368;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.panel-close-btn:hover {
+  color: #202124;
+  background-color: #f3f4f6;
+}
+
+/* ============================================
+   Input Groups
+   ============================================ */
+.input-group {
+  margin-bottom: 0.75rem;
+}
+
+.input-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #3C4043;
+  margin-bottom: 0.25rem;
+}
+
+.text-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: #4285F4;
+  box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.1);
+}
+
+.geojson-textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  font-family: 'Courier New', monospace;
+  resize: vertical;
+  min-height: 120px;
+  transition: all 0.2s ease;
+}
+
+.geojson-textarea:focus {
+  outline: none;
+  border-color: #4285F4;
+  box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.1);
+}
+
+/* ============================================
+   Error Message
+   ============================================ */
+.error-message {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  color: #b91c1c;
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.btn {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.btn-primary {
+  background-color: #4285F4;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: #3367D6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.btn-success {
+  background-color: #34A853;
+  color: #ffffff;
+}
+
+.btn-success:hover {
+  background-color: #1E8E3E;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.file-upload-label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================
+   Quick Samples
+   ============================================ */
+.samples-section {
+  margin-bottom: 1rem;
+}
+
+.samples-heading {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #5F6368;
+  margin-bottom: 0.5rem;
+}
+
+.samples-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sample-btn {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sample-polygon {
+  background-color: #f3e8ff;
+  color: #7e22ce;
+}
+
+.sample-polygon:hover {
+  background-color: #e9d5ff;
+}
+
+.sample-line {
+  background-color: #f0fdfa;
+  color: #0f766e;
+}
+
+.sample-line:hover {
+  background-color: #ccfbf1;
+}
+
+.sample-points {
+  background-color: #fff7ed;
+  color: #c2410c;
+}
+
+.sample-points:hover {
+  background-color: #fed7aa;
+}
+
+.sample-mixed {
+  background-color: #eef2ff;
+  color: #4338ca;
+}
+
+.sample-mixed:hover {
+  background-color: #c7d2fe;
+}
+
+/* ============================================
+   Loaded Layers Section
+   ============================================ */
+.layers-section {
+  border-top: 1px solid #d1d5db;
+  padding-top: 0.75rem;
+}
+
+.layers-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.layers-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #202124;
+}
+
+.clear-all-btn {
+  font-size: 0.75rem;
+  color: #dc2626;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.clear-all-btn:hover {
+  color: #991b1b;
+}
+
+.layers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.layer-card {
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: opacity 0.2s ease;
+}
+
+.layer-card.layer-hidden {
+  background: #f9fafb;
+  opacity: 0.6;
+}
+
+.layer-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.layer-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.layer-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.layer-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #202124;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layer-meta {
+  font-size: 0.75rem;
+  color: #5F6368;
+}
+
+.layer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.5rem;
+}
+
+.layer-action-btn {
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.layer-action-btn:hover {
+  background: #f3f4f6;
+}
+
+/* ============================================
+   Popup Styles
+   ============================================ */
+.maplibregl-popup-content {
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.popup-content {
+  padding: 0.25rem;
+}
+
+.popup-name {
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: #333;
+}
+
+.popup-prop {
+  font-size: 0.75rem;
+  color: #4b5563;
+}
+
+.popup-prop-key {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* ============================================
+   Map Control Pad
+   ============================================ */
+.map-control-pad {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 15;
+}
+
+.control-pad-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.control-btn {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none !important;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #5F6368;
+  -webkit-tap-highlight-color: transparent;
+  outline: none !important;
+  padding: 0;
+  margin: 0;
+}
+
+.control-btn:hover {
+  color: #4285F4;
+  background: rgba(66, 133, 244, 0.08);
+}
+
+.control-btn:active {
+  color: #3367D6;
+  background: rgba(66, 133, 244, 0.15);
+}
+
+.control-btn svg {
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+}
+
+.control-up { top: 4px; left: 42px; }
+.control-right { right: 4px; top: 42px; }
+.control-down { bottom: 4px; left: 42px; }
+.control-left { left: 4px; top: 42px; }
+
+/* ============================================
+   Zoom Controls
+   ============================================ */
+.zoom-controls {
+  position: absolute;
+  top: 35px;
+  left: 35px;
+  width: 50px;
+  height: 50px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.zoom-btn {
+  width: 100%;
+  height: 50%;
+  background: white;
+  border: none !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #5F6368;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 0;
+  margin: 0;
+  outline: none !important;
+}
+
+.zoom-btn:hover {
+  background: #4285F4;
+  color: white;
+}
+
+.zoom-btn:active {
+  background: #3367D6;
+  color: white;
+}
+
+.zoom-btn svg {
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+
+.zoom-in { border-radius: 25px 25px 0 0; }
+.zoom-out { border-radius: 0 0 25px 25px; }
+
+.zoom-divider {
+  width: 70%;
+  height: 1px;
+  background: #e0e0e0;
+}
+
+/* ============================================
+   Reset Map Button
+   ============================================ */
+.reset-map-btn {
+  position: absolute;
+  top: 150px;
+  right: 20px;
+  z-index: 15;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #5F6368;
+  outline: none !important;
+  padding: 0;
+  margin: 0;
+  transition: color 0.2s ease;
+}
+
+.reset-map-btn:hover { color: #4285F4; }
+.reset-map-btn:active { transform: scale(0.95); }
+
+.reset-map-btn.is-resetting svg {
+  animation: rotate 1s linear infinite;
+}
+
+.reset-map-btn svg {
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  transition: transform 0.2s ease;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   Fullscreen Button
+   ============================================ */
+.fullscreen-btn {
+  position: absolute;
+  top: 208px;
+  right: 20px;
+  z-index: 15;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #5F6368;
+  outline: none !important;
+  padding: 0;
+  margin: 0;
+  transition: color 0.2s ease;
+}
+
+.fullscreen-btn:hover { color: #4285F4; }
+.fullscreen-btn:active { transform: scale(0.95); }
+
+.fullscreen-btn svg {
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+}
+
+/* ============================================
+   2D/3D View Toggle
+   ============================================ */
+.view-toggle-btn {
+  position: absolute;
+  top: 268px;
+  right: 20px;
+  z-index: 15;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #5F6368;
+  outline: none !important;
+  padding: 0;
+  margin: 0;
+  transition: color 0.2s ease;
+}
+
+.view-toggle-btn:hover { color: #4285F4; }
+.view-toggle-btn:active { transform: scale(0.95); }
+
+.view-toggle-btn svg {
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+}
+
+/* ============================================
+   Base Map Selector Chips
+   ============================================ */
+.base-map-chips {
+  position: absolute;
+  bottom: 10px;
+  right: 50px;
+  z-index: 15;
+  display: flex;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 7px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.base-map-chip {
+  padding: 4px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #5F6368;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.base-map-chip:hover {
+  background: #f8f9fa;
+  border-color: #4285F4;
+  color: #4285F4;
+}
+
+.base-map-chip.active {
+  background: linear-gradient(145deg, #4285F4 0%, #3367D6 100%);
+  border-color: #4285F4;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+}
+
+.base-map-chip.active:hover {
+  background: linear-gradient(145deg, #3367D6 0%, #2B5BC7 100%);
+}
+
+.base-map-chip:active {
+  transform: scale(0.95);
+  opacity: 0.9;
+}
+
+/* ============================================
+   Hide Map Attribution
+   ============================================ */
+.maplibregl-ctrl-attrib {
+  display: none !important;
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+.loader-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.loader-panel::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.loader-panel::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.loader-panel::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+@media (max-width: 768px) {
+  .loader-panel {
+    width: calc(100vw - 2rem);
+    max-width: none;
+  }
+
+  .map-control-pad {
+    display: none;
+  }
+
+  .base-map-chips {
+    bottom: 70px;
+    right: 10px;
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .base-map-chip {
+    padding: 5px 10px;
+    font-size: 11px;
+    min-height: 32px;
+    min-width: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .reset-map-btn {
+    display: none;
+  }
+
+  .fullscreen-btn {
+    display: none;
+  }
+
+  .view-toggle-btn {
+    display: none;
+  }
+}
