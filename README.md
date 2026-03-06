@@ -4,6 +4,10 @@
 
 You can paste raw GeoJSON, or upload a `.json` / `.geojson` / `.txt` / `.docx` file, and see it styled on top of a base map. The app can show 3D extrusions for polygons, colored lines, and point markers with labels.
 
+### Live demo
+
+- **GeoJSON Loader (live)**: [https://geojson-loader.netlify.app](https://geojson-loader.netlify.app)
+
 ### Main features
 
 - **Paste or upload GeoJSON**: Works with `Feature`, `FeatureCollection`, or raw geometry types (Point, LineString, Polygon, Multi\*).
@@ -12,6 +16,16 @@ You can paste raw GeoJSON, or upload a `.json` / `.geojson` / `.txt` / `.docx` f
 - **2D / 3D view**: Switch between flat and tilted 3D map; polygons are shown as raised extrusions.
 - **Map controls**: On‑screen pad for panning and zooming, plus fullscreen toggle.
 - **Base maps**: Switch between a detailed OpenStreetMap style (via MapTiler) and a light CartoDB Positron style.
+
+### Screenshots
+
+Overall view of the app:
+
+![GeoJSON Loader main view](public/SS1.png)
+
+Example with loaded GeoJSON data:
+
+![GeoJSON Loader with data](public/SS2.png)
 
 ### Tech stack
 
