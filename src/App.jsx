@@ -52,6 +52,22 @@ const LAYER_COLORS = [
 
 let layerIdCounter = 0;
 
+// Generate a circular Polygon from a center [lng, lat] and radius in meters
+function makeCirclePolygon(centerLng, centerLat, radiusMeters, steps = 64) {
+  const coords = [];
+  const earthRadius = 6371000;
+  const latR = (radiusMeters / earthRadius) * (180 / Math.PI);
+  const lngR = latR / Math.cos((centerLat * Math.PI) / 180);
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * 2 * Math.PI;
+    coords.push([
+      centerLng + lngR * Math.cos(angle),
+      centerLat + latR * Math.sin(angle),
+    ]);
+  }
+  return { type: "Polygon", coordinates: [coords] };
+}
+
 export default function App() {
   const mapRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -204,22 +220,69 @@ export default function App() {
 
     const geometryTypes = new Set(validFeatures.map((f) => f.geometry.type));
 
-    const colorIndex = geoJSONLayers.length % LAYER_COLORS.length;
-    const color = LAYER_COLORS[colorIndex];
-    const id = `geojson-layer-${++layerIdCounter}`;
-    const name = layerName.trim() || `Layer ${geoJSONLayers.length + 1}`;
+    // Group geometry types into buckets: circular polygons, polygons, lines, points
+    // A polygon is treated as "circular" if it has 32+ outer-ring vertices
+    // (our makeCirclePolygon uses 64 steps; hand-drawn polygons rarely exceed ~20)
+    const isCircularPolygon = (f) =>
+      (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon") &&
+      (f.properties?.radius_m != null ||
+        (f.geometry.type === "Polygon" &&
+          f.geometry.coordinates[0]?.length >= 33));
 
-    const newLayer = {
-      id,
-      name,
-      color,
-      data: featureCollection,
-      visible: true,
-      geometryTypes: Array.from(geometryTypes),
-      featureCount: validFeatures.length,
-    };
+    const LINE_TYPES = ["LineString", "MultiLineString"];
+    const POINT_TYPES = ["Point", "MultiPoint"];
 
-    setGeoJSONLayers((prev) => [...prev, newLayer]);
+    const hasCircular = validFeatures.some(isCircularPolygon);
+    const hasRegularPolygon = validFeatures.some(
+      (f) =>
+        (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon") &&
+        !isCircularPolygon(f),
+    );
+
+    const buckets = [
+      hasRegularPolygon && {
+        key: "polygon",
+        filter: (f) =>
+          (f.geometry.type === "Polygon" ||
+            f.geometry.type === "MultiPolygon") &&
+          !isCircularPolygon(f),
+        label: "Polygon",
+      },
+      hasCircular && {
+        key: "circular-polygon",
+        filter: isCircularPolygon,
+        label: "Circular Polygon",
+      },
+      validFeatures.some((f) => LINE_TYPES.includes(f.geometry.type)) && {
+        key: "line",
+        filter: (f) => LINE_TYPES.includes(f.geometry.type),
+        label: "Line",
+      },
+      validFeatures.some((f) => POINT_TYPES.includes(f.geometry.type)) && {
+        key: "point",
+        filter: (f) => POINT_TYPES.includes(f.geometry.type),
+        label: "Point",
+      },
+    ].filter(Boolean);
+
+    const baseName = layerName.trim() || `Layer ${geoJSONLayers.length + 1}`;
+    const isMixed = buckets.length > 1;
+
+    const newLayers = buckets.map(({ filter, label }, i) => {
+      const features = validFeatures.filter(filter);
+      const colorIndex = (geoJSONLayers.length + i) % LAYER_COLORS.length;
+      return {
+        id: `geojson-layer-${++layerIdCounter}`,
+        name: isMixed ? `${baseName} — ${label}` : baseName,
+        color: LAYER_COLORS[colorIndex],
+        data: { type: "FeatureCollection", features },
+        visible: true,
+        geometryTypes: [...new Set(features.map((f) => f.geometry.type))],
+        featureCount: features.length,
+      };
+    });
+
+    setGeoJSONLayers((prev) => [...prev, ...newLayers]);
     setGeoJSONInput("");
     setLayerName("");
 
@@ -229,13 +292,16 @@ export default function App() {
     );
     if (hasPolygons && !is3DView) {
       setIs3DView(true);
-      const map = mapRef.current?.getMap();
-      if (map) {
-        map.easeTo({ pitch: 45, duration: 1000 });
-      }
+      // Delay easeTo so maxPitch re-renders to 85 before we try to tilt
+      setTimeout(() => {
+        const map = mapRef.current?.getMap();
+        if (map) {
+          map.easeTo({ pitch: 45, duration: 1000 });
+        }
+      }, 50);
     }
 
-    flyToBounds(featureCollection);
+    flyToBounds({ type: "FeatureCollection", features: validFeatures });
   }, [geoJSONInput, geoJSONLayers, layerName, flyToBounds, is3DView]);
 
   // Handle file upload
@@ -274,6 +340,32 @@ export default function App() {
   const clearAllLayers = useCallback(() => {
     setGeoJSONLayers([]);
   }, []);
+
+  const downloadLayer = useCallback((layer) => {
+    const json = JSON.stringify(layer.data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${layer.name.replace(/\s+/g, "_")}.geojson`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const downloadAllLayers = useCallback(() => {
+    const combined = {
+      type: "FeatureCollection",
+      features: geoJSONLayers.flatMap((l) => l.data.features),
+    };
+    const json = JSON.stringify(combined, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "all_layers.geojson";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [geoJSONLayers]);
 
   const flyToLayer = useCallback(
     (layerId) => {
@@ -464,51 +556,24 @@ export default function App() {
             <div className="samples-grid">
               <button
                 onClick={() => {
-                  setLayerName("Sample Polygon");
-                  setGeoJSONInput(
-                    JSON.stringify(
-                      {
-                        type: "Feature",
-                        properties: { name: "Sample Polygon" },
-                        geometry: {
-                          type: "Polygon",
-                          coordinates: [
-                            [
-                              [72.8777, 19.076],
-                              [72.8797, 19.076],
-                              [72.8797, 19.078],
-                              [72.8777, 19.078],
-                              [72.8777, 19.076],
-                            ],
-                          ],
-                        },
-                      },
-                      null,
-                      2,
-                    ),
-                  );
-                }}
-                className="sample-btn sample-polygon"
-              >
-                Polygon
-              </button>
-              <button
-                onClick={() => {
                   setLayerName("Sample LineString");
                   setGeoJSONInput(
                     JSON.stringify(
                       {
-                        type: "Feature",
-                        properties: { name: "Sample Line" },
-                        geometry: {
-                          type: "LineString",
-                          coordinates: [
-                            [72.8777, 19.075],
-                            [72.8787, 19.076],
-                            [72.8797, 19.0755],
-                            [72.8807, 19.077],
-                          ],
-                        },
+                        type: "FeatureCollection",
+                        features: [
+                          {
+                            type: "Feature",
+                            properties: {},
+                            geometry: {
+                              type: "LineString",
+                              coordinates: [
+                                [72.81858583220892, 18.970938810601297],
+                                [72.82015336015206, 18.970805096205382],
+                              ],
+                            },
+                          },
+                        ],
                       },
                       null,
                       2,
@@ -521,7 +586,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => {
-                  setLayerName("Sample Points");
+                  setLayerName("Sample Polygon");
                   setGeoJSONInput(
                     JSON.stringify(
                       {
@@ -529,26 +594,142 @@ export default function App() {
                         features: [
                           {
                             type: "Feature",
-                            properties: { name: "Point A" },
+                            properties: {},
                             geometry: {
-                              type: "Point",
-                              coordinates: [72.8777, 19.076],
+                              type: "Polygon",
+                              coordinates: [
+                                [
+                                  [72.81896787470845, 18.969852901518877],
+                                  [72.81896787470845, 18.9692898484911],
+                                  [72.81971064808477, 18.9692898484911],
+                                  [72.81971064808477, 18.969852901518877],
+                                  [72.81896787470845, 18.969852901518877],
+                                ],
+                              ],
                             },
                           },
+                        ],
+                      },
+                      null,
+                      2,
+                    ),
+                  );
+                }}
+                className="sample-btn sample-polygon"
+              >
+                Polygon
+              </button>
+              <button
+                onClick={() => {
+                  setLayerName("Circular Polygon");
+                  setGeoJSONInput(
+                    JSON.stringify(
+                      {
+                        type: "FeatureCollection",
+                        features: [
                           {
                             type: "Feature",
-                            properties: { name: "Point B" },
+                            properties: {},
                             geometry: {
-                              type: "Point",
-                              coordinates: [72.8797, 19.078],
+                              type: "Polygon",
+                              coordinates: [
+                                [
+                                  [72.82032650773957, 18.97067543239682],
+                                  [72.82028590362069, 18.970673545984745],
+                                  [72.82024569054437, 18.970667904915828],
+                                  [72.82020625578721, 18.97065856351702],
+                                  [72.82016797912989, 18.970645611751713],
+                                  [72.82013122919963, 18.97062917435331],
+                                  [72.82009635992014, 18.97060940962395],
+                                  [72.82006370710289, 18.97058650790993],
+                                  [72.82003358521321, 18.970560689768508],
+                                  [72.82000628434159, 18.970532203843806],
+                                  [72.81998206741011, 18.970501324472135],
+                                  [72.81996116764023, 18.97046834903997],
+                                  [72.81994378630688, 18.9704335951199],
+                                  [72.81993009080006, 18.970397397412174],
+                                  [72.81992021301285, 18.970360104521326],
+                                  [72.81991424807136, 18.970322075598904],
+                                  [72.81991225341854, 18.970283676884588],
+                                  [72.81991424826128, 18.97024527817912],
+                                  [72.81992021338546, 18.970207249282893],
+                                  [72.81993009134098, 18.970169956434592],
+                                  [72.81994378699535, 18.97013375878412],
+                                  [72.81996116844978, 18.97009900493381],
+                                  [72.81998206830963, 18.970066029581247],
+                                  [72.82000628529653, 18.970035150295935],
+                                  [72.82003358618685, 18.97000666446105],
+                                  [72.82006370805784, 18.969980846409445],
+                                  [72.82009636081966, 18.969957944781786],
+                                  [72.82013123000918, 18.969938180132022],
+                                  [72.82016797981835, 18.969921742803383],
+                                  [72.82020625632815, 18.969908791095325],
+                                  [72.82024569091698, 18.969899449739067],
+                                  [72.82028590381061, 18.969893808696344],
+                                  [72.82032650773957, 18.96989192229311],
+                                  [72.82036711166852, 18.969893808696344],
+                                  [72.82040732456217, 18.969899449739067],
+                                  [72.820446759151, 18.969908791095325],
+                                  [72.82048503566078, 18.969921742803383],
+                                  [72.82052178546995, 18.969938180132022],
+                                  [72.82055665465947, 18.969957944781786],
+                                  [72.8205893074213, 18.969980846409445],
+                                  [72.82061942929228, 18.97000666446105],
+                                  [72.8206467301826, 18.970035150295935],
+                                  [72.8206709471695, 18.970066029581247],
+                                  [72.82069184702935, 18.97009900493381],
+                                  [72.82070922848379, 18.97013375878412],
+                                  [72.82072292413815, 18.970169956434592],
+                                  [72.82073280209369, 18.970207249282893],
+                                  [72.82073876721785, 18.97024527817912],
+                                  [72.8207407620606, 18.970283676884588],
+                                  [72.82073876740779, 18.970322075598904],
+                                  [72.82073280246628, 18.970360104521326],
+                                  [72.82072292467907, 18.970397397412174],
+                                  [72.82070922917225, 18.9704335951199],
+                                  [72.8206918478389, 18.97046834903997],
+                                  [72.82067094806904, 18.970501324472135],
+                                  [72.82064673113754, 18.970532203843806],
+                                  [72.82061943026592, 18.970560689768508],
+                                  [72.82058930837624, 18.97058650790993],
+                                  [72.820556655559, 18.97060940962395],
+                                  [72.8205217862795, 18.97062917435331],
+                                  [72.82048503634925, 18.970645611751713],
+                                  [72.82044675969192, 18.97065856351702],
+                                  [72.82040732493476, 18.970667904915828],
+                                  [72.82036711185846, 18.970673545984745],
+                                  [72.82032650773957, 18.97067543239682],
+                                ],
+                              ],
                             },
                           },
+                        ],
+                      },
+                      null,
+                      2,
+                    ),
+                  );
+                }}
+                className="sample-btn sample-circle"
+              >
+                Circular Polygon
+              </button>
+              <button
+                onClick={() => {
+                  setLayerName("Sample Point");
+                  setGeoJSONInput(
+                    JSON.stringify(
+                      {
+                        type: "FeatureCollection",
+                        features: [
                           {
                             type: "Feature",
-                            properties: { name: "Point C" },
+                            properties: {},
                             geometry: {
                               type: "Point",
-                              coordinates: [72.8817, 19.077],
+                              coordinates: [
+                                72.81929631501896, 18.971355248717273,
+                              ],
                             },
                           },
                         ],
@@ -572,38 +753,115 @@ export default function App() {
                         features: [
                           {
                             type: "Feature",
-                            properties: { name: "Zone A" },
+                            properties: {},
                             geometry: {
                               type: "Polygon",
                               coordinates: [
                                 [
-                                  [72.875, 19.076],
-                                  [72.877, 19.076],
-                                  [72.877, 19.0775],
-                                  [72.875, 19.0775],
-                                  [72.875, 19.076],
+                                  [72.81896787470845, 18.969852901518877],
+                                  [72.81896787470845, 18.9692898484911],
+                                  [72.81971064808477, 18.9692898484911],
+                                  [72.81971064808477, 18.969852901518877],
+                                  [72.81896787470845, 18.969852901518877],
                                 ],
                               ],
                             },
                           },
                           {
                             type: "Feature",
-                            properties: { name: "Connector" },
+                            properties: {},
                             geometry: {
-                              type: "LineString",
+                              type: "Polygon",
                               coordinates: [
-                                [72.877, 19.0768],
-                                [72.878, 19.077],
-                                [72.879, 19.0765],
+                                [
+                                  [72.82032650773957, 18.97067543239682],
+                                  [72.82028590362069, 18.970673545984745],
+                                  [72.82024569054437, 18.970667904915828],
+                                  [72.82020625578721, 18.97065856351702],
+                                  [72.82016797912989, 18.970645611751713],
+                                  [72.82013122919963, 18.97062917435331],
+                                  [72.82009635992014, 18.97060940962395],
+                                  [72.82006370710289, 18.97058650790993],
+                                  [72.82003358521321, 18.970560689768508],
+                                  [72.82000628434159, 18.970532203843806],
+                                  [72.81998206741011, 18.970501324472135],
+                                  [72.81996116764023, 18.97046834903997],
+                                  [72.81994378630688, 18.9704335951199],
+                                  [72.81993009080006, 18.970397397412174],
+                                  [72.81992021301285, 18.970360104521326],
+                                  [72.81991424807136, 18.970322075598904],
+                                  [72.81991225341854, 18.970283676884588],
+                                  [72.81991424826128, 18.97024527817912],
+                                  [72.81992021338546, 18.970207249282893],
+                                  [72.81993009134098, 18.970169956434592],
+                                  [72.81994378699535, 18.97013375878412],
+                                  [72.81996116844978, 18.97009900493381],
+                                  [72.81998206830963, 18.970066029581247],
+                                  [72.82000628529653, 18.970035150295935],
+                                  [72.82003358618685, 18.97000666446105],
+                                  [72.82006370805784, 18.969980846409445],
+                                  [72.82009636081966, 18.969957944781786],
+                                  [72.82013123000918, 18.969938180132022],
+                                  [72.82016797981835, 18.969921742803383],
+                                  [72.82020625632815, 18.969908791095325],
+                                  [72.82024569091698, 18.969899449739067],
+                                  [72.82028590381061, 18.969893808696344],
+                                  [72.82032650773957, 18.96989192229311],
+                                  [72.82036711166852, 18.969893808696344],
+                                  [72.82040732456217, 18.969899449739067],
+                                  [72.820446759151, 18.969908791095325],
+                                  [72.82048503566078, 18.969921742803383],
+                                  [72.82052178546995, 18.969938180132022],
+                                  [72.82055665465947, 18.969957944781786],
+                                  [72.8205893074213, 18.969980846409445],
+                                  [72.82061942929228, 18.97000666446105],
+                                  [72.8206467301826, 18.970035150295935],
+                                  [72.8206709471695, 18.970066029581247],
+                                  [72.82069184702935, 18.97009900493381],
+                                  [72.82070922848379, 18.97013375878412],
+                                  [72.82072292413815, 18.970169956434592],
+                                  [72.82073280209369, 18.970207249282893],
+                                  [72.82073876721785, 18.97024527817912],
+                                  [72.8207407620606, 18.970283676884588],
+                                  [72.82073876740779, 18.970322075598904],
+                                  [72.82073280246628, 18.970360104521326],
+                                  [72.82072292467907, 18.970397397412174],
+                                  [72.82070922917225, 18.9704335951199],
+                                  [72.8206918478389, 18.97046834903997],
+                                  [72.82067094806904, 18.970501324472135],
+                                  [72.82064673113754, 18.970532203843806],
+                                  [72.82061943026592, 18.970560689768508],
+                                  [72.82058930837624, 18.97058650790993],
+                                  [72.820556655559, 18.97060940962395],
+                                  [72.8205217862795, 18.97062917435331],
+                                  [72.82048503634925, 18.970645611751713],
+                                  [72.82044675969192, 18.97065856351702],
+                                  [72.82040732493476, 18.970667904915828],
+                                  [72.82036711185846, 18.970673545984745],
+                                  [72.82032650773957, 18.97067543239682],
+                                ],
                               ],
                             },
                           },
                           {
                             type: "Feature",
-                            properties: { name: "Checkpoint" },
+                            properties: {},
+                            geometry: {
+                              type: "LineString",
+                              coordinates: [
+                                [72.81858583220892, 18.970938810601297],
+                                [72.82015336015206, 18.970805096205382],
+                              ],
+                            },
+                          },
+                          {
+                            type: "Feature",
+                            properties: {},
                             geometry: {
                               type: "Point",
-                              coordinates: [72.879, 19.0765],
+                              coordinates: [
+                                72.81929631501896, 18.971355248717273,
+                              ],
                             },
                           },
                         ],
@@ -627,9 +885,31 @@ export default function App() {
                 <h3 className="layers-title">
                   Loaded Layers ({geoJSONLayers.length})
                 </h3>
-                <button onClick={clearAllLayers} className="clear-all-btn">
-                  Clear All
-                </button>
+                <div className="layers-header-actions">
+                  <button
+                    onClick={downloadAllLayers}
+                    className="download-all-btn"
+                    title="Download all layers as one GeoJSON file"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      style={{ marginRight: "4px", verticalAlign: "middle" }}
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Download All
+                  </button>
+                  <button onClick={clearAllLayers} className="clear-all-btn">
+                    Clear All
+                  </button>
+                </div>
               </div>
               <div className="layers-list">
                 {geoJSONLayers.map((layer) => (
@@ -699,6 +979,24 @@ export default function App() {
                             <line x1="1" y1="1" x2="23" y2="23" />
                           </svg>
                         )}
+                      </button>
+                      <button
+                        onClick={() => downloadLayer(layer)}
+                        className="layer-action-btn"
+                        title="Download as GeoJSON"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#34A853"
+                          strokeWidth="2"
+                        >
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
                       </button>
                       <button
                         onClick={() => removeLayer(layer.id)}
@@ -961,7 +1259,7 @@ export default function App() {
                   "fill-extrusion-color": layer.color,
                   "fill-extrusion-height": 30,
                   "fill-extrusion-base": 0,
-                  "fill-extrusion-opacity": 0.7,
+                  "fill-extrusion-opacity": 1,
                 }}
               />
               {/* Polygon outline at ground level */}
@@ -976,7 +1274,7 @@ export default function App() {
                 paint={{
                   "line-color": layer.color,
                   "line-width": 2,
-                  "line-opacity": 0.8,
+                  "line-opacity": 1,
                 }}
               />
               {/* LineString - lifted slightly */}
@@ -990,9 +1288,9 @@ export default function App() {
                 ]}
                 paint={{
                   "line-color": layer.color,
-                  "line-width": 4,
-                  "line-opacity": 0.9,
-                  "line-translate": [0, -8],
+                  "line-width": 5,
+                  "line-opacity": 1,
+                  "line-translate": [0, -20],
                   "line-translate-anchor": "viewport",
                 }}
               />
@@ -1025,7 +1323,7 @@ export default function App() {
                   "circle-radius": 8,
                   "circle-stroke-color": "#fff",
                   "circle-stroke-width": 2.5,
-                  "circle-opacity": 0.9,
+                  "circle-opacity": 1,
                   "circle-translate": [0, -4],
                   "circle-translate-anchor": "viewport",
                 }}

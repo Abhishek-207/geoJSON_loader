@@ -54,7 +54,7 @@ body {
   padding: 1rem;
   border-radius: 0.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.08);
-  width: 20rem;
+  width: 27rem;
   max-height: 90vh;
   overflow-y: auto;
 }
@@ -273,6 +273,15 @@ button:disabled {
   background-color: #c7d2fe;
 }
 
+.sample-circle {
+  background-color: #fdf2f8;
+  color: #be185d;
+}
+
+.sample-circle:hover {
+  background-color: #fce7f3;
+}
+
 /* ============================================
    Loaded Layers Section
    ============================================ */
@@ -288,10 +297,33 @@ button:disabled {
   margin-bottom: 0.5rem;
 }
 
+.layers-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .layers-title {
   font-size: 0.875rem;
   font-weight: 700;
   color: #202124;
+}
+
+.download-all-btn {
+  font-size: 0.75rem;
+  color: #15803d;
+  font-weight: 600;
+  background: transparent;
+  border: 0.5px solid #15803d;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.download-all-btn:hover {
+  color: #166534;
+  border-color: #166534;
+  background: #f0fdf4;
 }
 
 .clear-all-btn {
@@ -299,12 +331,16 @@ button:disabled {
   color: #dc2626;
   font-weight: 600;
   background: transparent;
-  border: none;
+  border: 0.5px solid #dc2626;
+  border-radius: 4px;
   cursor: pointer;
+  padding: 2px 6px;
 }
 
 .clear-all-btn:hover {
   color: #991b1b;
+  border-color: #991b1b;
+  background: #fff5f5;
 }
 
 .layers-list {
