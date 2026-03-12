@@ -78,6 +78,7 @@ export default function App() {
   const [selectedBaseMap, setSelectedBaseMap] = useState("OpenStreetMap");
   const [is3DView, setIs3DView] = useState(false);
   const [hoverInfo, setHoverInfo] = useState(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   // GeoJSON layers state
   const [geoJSONLayers, setGeoJSONLayers] = useState([]);
@@ -96,53 +97,56 @@ export default function App() {
   }, []);
 
   // Calculate bounds of a FeatureCollection and fly to it
-  const flyToBounds = useCallback((featureCollection) => {
-    if (!mapRef.current) return;
+  const flyToBounds = useCallback(
+    (featureCollection) => {
+      if (!mapRef.current || !mapLoaded) return;
 
-    let minLng = Infinity,
-      minLat = Infinity,
-      maxLng = -Infinity,
-      maxLat = -Infinity;
+      let minLng = Infinity,
+        minLat = Infinity,
+        maxLng = -Infinity,
+        maxLat = -Infinity;
 
-    const processCoords = (coords) => {
-      if (typeof coords[0] === "number") {
-        minLng = Math.min(minLng, coords[0]);
-        maxLng = Math.max(maxLng, coords[0]);
-        minLat = Math.min(minLat, coords[1]);
-        maxLat = Math.max(maxLat, coords[1]);
-      } else {
-        coords.forEach(processCoords);
+      const processCoords = (coords) => {
+        if (typeof coords[0] === "number") {
+          minLng = Math.min(minLng, coords[0]);
+          maxLng = Math.max(maxLng, coords[0]);
+          minLat = Math.min(minLat, coords[1]);
+          maxLat = Math.max(maxLat, coords[1]);
+        } else {
+          coords.forEach(processCoords);
+        }
+      };
+
+      featureCollection.features.forEach((feature) => {
+        if (feature.geometry && feature.geometry.coordinates) {
+          processCoords(feature.geometry.coordinates);
+        }
+      });
+
+      if (
+        minLng === Infinity ||
+        minLat === Infinity ||
+        maxLng === -Infinity ||
+        maxLat === -Infinity
+      ) {
+        return;
       }
-    };
 
-    featureCollection.features.forEach((feature) => {
-      if (feature.geometry && feature.geometry.coordinates) {
-        processCoords(feature.geometry.coordinates);
-      }
-    });
-
-    if (
-      minLng === Infinity ||
-      minLat === Infinity ||
-      maxLng === -Infinity ||
-      maxLat === -Infinity
-    ) {
-      return;
-    }
-
-    const map = mapRef.current.getMap();
-    map.fitBounds(
-      [
-        [minLng, minLat],
-        [maxLng, maxLat],
-      ],
-      {
-        padding: 60,
-        duration: 1000,
-        maxZoom: 18,
-      },
-    );
-  }, []);
+      const map = mapRef.current.getMap();
+      map.fitBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        {
+          padding: 60,
+          duration: 1000,
+          maxZoom: 18,
+        },
+      );
+    },
+    [mapLoaded],
+  );
 
   // Parse and validate GeoJSON, then add as a layer
   const addGeoJSONLayer = useCallback(() => {
@@ -292,16 +296,22 @@ export default function App() {
     );
     if (hasPolygons && !is3DView) {
       setIs3DView(true);
-      // Delay easeTo so maxPitch re-renders to 85 before we try to tilt
+      // Delay so maxPitch re-renders to 85, then tilt, then fly to bounds
       setTimeout(() => {
         const map = mapRef.current?.getMap();
         if (map) {
-          map.easeTo({ pitch: 45, duration: 1000 });
+          map.easeTo({ pitch: 45, duration: 600 });
         }
+        setTimeout(() => {
+          flyToBounds({ type: "FeatureCollection", features: validFeatures });
+        }, 100);
+      }, 50);
+    } else {
+      // No 3D transition needed — fly immediately (with slight delay for first load)
+      setTimeout(() => {
+        flyToBounds({ type: "FeatureCollection", features: validFeatures });
       }, 50);
     }
-
-    flyToBounds({ type: "FeatureCollection", features: validFeatures });
   }, [geoJSONInput, geoJSONLayers, layerName, flyToBounds, is3DView]);
 
   // Handle file upload
@@ -1210,6 +1220,7 @@ export default function App() {
         mapStyle={BASE_MAPS[selectedBaseMap].url}
         minPitch={0}
         maxPitch={is3DView ? 85 : 0}
+        onLoad={() => setMapLoaded(true)}
         onMouseMove={(event) => {
           const feature = event.features && event.features[0];
           if (feature && feature.properties) {
