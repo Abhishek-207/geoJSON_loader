@@ -23,11 +23,12 @@
    - [Amenities — Entrances, Waiting Areas, Parking, Parks, etc. (Polygon)](#9-amenities)
    - [Navigation Nodes (Point)](#10-navigation-nodes)
    - [Navigation Edges (LineString)](#11-navigation-edges)
-6. [Geometry Rules & Conventions](#geometry-rules--conventions)
-7. [Naming & ID Conventions](#naming--id-conventions)
-8. [Coordinate Precision](#coordinate-precision)
-9. [Validation Checklist](#validation-checklist)
-10. [Quick Reference — Complete Example](#quick-reference--complete-example)
+6. [Map View Configuration (Bounds & Camera)](#map-view-configuration-bounds--camera)
+7. [Geometry Rules & Conventions](#geometry-rules--conventions)
+8. [Naming & ID Conventions](#naming--id-conventions)
+9. [Coordinate Precision](#coordinate-precision)
+10. [Validation Checklist](#validation-checklist)
+11. [Quick Reference — Complete Example](#quick-reference--complete-example)
 
 ---
 
@@ -57,6 +58,18 @@ Any tool that can export valid GeoJSON is acceptable. Recommended options:
 | **Mapbox Studio**    | Can draw features interactively and export GeoJSON.                                                                   |
 
 Regardless of tool, the final deliverable must be a **single `.geojson` or `.json` file** conforming to the structure below.
+
+### Testing & Previewing GeoJSON
+
+Before delivering, always preview GeoJSON on a map to visually verify correctness:
+
+| Tool               | URL                                                               | What It Does                                                                                                                                                               |
+| ------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GeoJSON Loader** | [geojson-loader.netlify.app](https://geojson-loader.netlify.app/) | Load a `.geojson` file directly or paste raw GeoJSON to instantly see it rendered on a map. Use this to verify shapes, positions, and coordinate accuracy before delivery. |
+| **geojson.io**     | [geojson.io](https://geojson.io/)                                 | Draw, edit, and preview GeoJSON interactively on a satellite map. Also useful for quick validation.                                                                        |
+
+**Recommended workflow:**  
+After exporting from QGIS or any other tool → open [GeoJSON Loader](https://geojson-loader.netlify.app/) → drag-and-drop file or paste the raw JSON → confirm all polygons, points, and lines appear at the correct locations on the map.
 
 ---
 
@@ -548,6 +561,103 @@ Supported amenity categories:
 
 ---
 
+## Map View Configuration (Bounds & Camera)
+
+Apart from the GeoJSON features, we also need **two pieces of spatial metadata** for every station/venue. These tell the app where to point the camera and how far users can pan.
+
+### 1. Initial View State (Camera Position)
+
+This defines where the map camera is centered when the app first loads.
+
+```json
+{
+  "longitude": 72.8193,
+  "latitude": 18.9688,
+  "zoom": 18,
+  "pitch": 45,
+  "bearing": 270
+}
+```
+
+| Field       | Type   | Description                                                                                                                        |
+| ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `longitude` | number | Center longitude of the venue                                                                                                      |
+| `latitude`  | number | Center latitude of the venue                                                                                                       |
+| `zoom`      | number | Zoom level. `18` is typical for station-level detail. Range: `0` (whole world) to `22` (building-level).                           |
+| `pitch`     | number | Camera tilt in degrees. `0` = top-down, `45` = angled 3D view, `60` = very tilted. Use `45` for 3D station maps.                   |
+| `bearing`   | number | Camera rotation in degrees. `0` = north-up. Adjust so the station layout looks natural (e.g. `270` if the station runs east-west). |
+
+**How to determine these values:**
+
+1. Open GeoJSON in [geojson.io](https://geojson.io/) or [GeoJSON Loader](https://geojson-loader.netlify.app/).
+2. Navigate the map so the entire station/venue is nicely visible and centered.
+3. Note the center coordinate (longitude, latitude) from the map view.
+4. We will fine-tune `zoom`, `pitch`, and `bearing` on our end — but provide a reasonable starting point.
+
+### 2. Map Bounds (Bounding Box)
+
+This restricts how far users can pan away from the station. It's a rectangle defined by 4 coordinates:
+
+```json
+{
+  "bounds": [72.817, 18.967, 72.8225, 18.9741]
+}
+```
+
+The order is: **`[west, south, east, north]`** which means **`[minLongitude, minLatitude, maxLongitude, maxLatitude]`**.
+
+```
+         north (maxLat)
+          ┌──────────┐
+          │          │
+west      │  STATION │      east
+(minLon)  │          │   (maxLon)
+          └──────────┘
+         south (minLat)
+```
+
+| Index | Field                 | Description                                             |
+| ----- | --------------------- | ------------------------------------------------------- |
+| 0     | `west` (minLongitude) | Left boundary — the westernmost longitude of the area   |
+| 1     | `south` (minLatitude) | Bottom boundary — the southernmost latitude of the area |
+| 2     | `east` (maxLongitude) | Right boundary — the easternmost longitude of the area  |
+| 3     | `north` (maxLatitude) | Top boundary — the northernmost latitude of the area    |
+
+**How to determine bounds:**
+
+1. Open GeoJSON in [geojson.io](https://geojson.io/) or [GeoJSON Loader](https://geojson-loader.netlify.app/).
+2. Identify the **outermost features** of the station (the features furthest in each direction).
+3. Add some padding beyond those — roughly **50–100 meters** of extra space on each side so the map doesn't feel cramped.
+4. Record the 4 corner values.
+
+**Alternatively in QGIS:**
+
+1. Select all features → right-click layer → "Zoom to Layer".
+2. Read the extent from the bottom status bar or via `Layer Properties → Information → Extent`.
+3. Add padding to each side.
+
+### How to Deliver This
+
+Include these values in a separate small JSON file alongside the main GeoJSON, or in a clearly marked section at the top of delivery notes:
+
+```json
+{
+  "venue_name": "Mumbai Central Station",
+  "initial_view": {
+    "longitude": 72.8193,
+    "latitude": 18.9688,
+    "zoom": 18,
+    "pitch": 45,
+    "bearing": 270
+  },
+  "bounds": [72.817, 18.967, 72.8225, 18.9741]
+}
+```
+
+> **This is required for every station/venue.** Without bounds and initial view, we cannot configure the map correctly.
+
+---
+
 ## Geometry Rules & Conventions
 
 ### Polygon Rules
@@ -632,7 +742,9 @@ Before delivering the GeoJSON file, verify:
 - [ ] Colors are valid hex codes (e.g. `"#FFD700"`)
 - [ ] `height` and `base` values are reasonable numbers in meters
 - [ ] CRS is EPSG:4326 (WGS 84) — this is the GeoJSON default; do not include a `"crs"` field
-- [ ] Paste into [geojson.io](https://geojson.io/) and visually verify shapes appear at the correct location
+- [ ] **Map view config** is provided: initial view (center lon/lat, zoom, pitch, bearing) and bounds (`[west, south, east, north]`)
+- [ ] Bounds have adequate padding (~50–100m) around the outermost features
+- [ ] Paste into [geojson.io](https://geojson.io/) or [GeoJSON Loader](https://geojson-loader.netlify.app/) and visually verify shapes appear at the correct location
 
 ---
 
@@ -824,9 +936,18 @@ A minimal but complete file with one of each feature type:
 
 ## Delivery Format
 
-- **File name:** `station_data.json` (or `{venue_name}_data.json`)
+Each station/venue delivery must include **two things**:
+
+| #   | File                                              | Contents                                                                                                 |
+| --- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 1   | `station_data.json` (or `{venue_name}_data.json`) | The main GeoJSON `FeatureCollection` with all features                                                   |
+| 2   | `map_config.json` (or included in delivery notes) | Initial view state + bounding box (see [Map View Configuration](#map-view-configuration-bounds--camera)) |
+
+**Requirements:**
+
 - **Encoding:** UTF-8
 - **One file per station/venue** containing all features
 - **No extra wrappers** — just the raw FeatureCollection as shown above
+- **Map config must be provided** — without bounds and initial camera, we cannot set up the map
 
-If the file is too large to work with in one go, can be split into separate files per category (e.g. `platforms.geojson`, `navigation.geojson`) and we will merge them. Communicate this in advance.
+If the GeoJSON file is too large to work with in one go, it can be split into separate files per category (e.g. `platforms.geojson`, `navigation.geojson`) and we will merge them. Communicate this in advance.

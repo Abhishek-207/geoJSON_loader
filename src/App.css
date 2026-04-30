@@ -273,6 +273,11 @@ button:disabled {
   background-color: #c7d2fe;
 }
 
+.preloaded-section {
+  margin-bottom: 1rem;
+}
+
+
 .sample-circle {
   background-color: #fdf2f8;
   color: #be185d;

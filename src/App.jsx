@@ -7,6 +7,9 @@ import Map, {
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./App.css";
+import PRELOADED_LAYERS from "./preloadedLayers";
+import { processStructures, classifyFeature } from "./structureProcessor";
+import { Select } from "antd";
 
 const INITIAL_VIEW_STATE = {
   longitude: 78.9,
@@ -49,6 +52,39 @@ const LAYER_COLORS = [
   "#3F51B5", // Indigo
   "#009688", // Teal Dark
 ];
+
+// Category-based colors for pre-loaded station layers
+const CATEGORY_COLORS = {
+  staircase: "#FF9800",     // Orange
+  escalator: "#9C27B0",     // Purple
+  fob: "#4285F4",           // Blue
+  flyover: "#00BCD4",       // Cyan
+  lift: "#F44336",          // Red
+  booking_office: "#34A853", // Green
+  toilet: "#795548",        // Brown
+  platform: "#3F51B5",      // Indigo
+  coach: "#9E9E9E",         // Grey
+  entry: "#8BC34A",         // Light Green
+  exit: "#E91E63",          // Pink
+  default: "#607D8B",       // Blue Grey
+};
+
+// Derive category from a component name
+const getCategoryColor = (name) => {
+  const n = name.toLowerCase();
+  if (n.includes("escalator")) return CATEGORY_COLORS.escalator;
+  if (n.includes("staircase") || n.startsWith("staircase")) return CATEGORY_COLORS.staircase;
+  if (n.includes("flyover")) return CATEGORY_COLORS.flyover;
+  if (n.includes("fob")) return CATEGORY_COLORS.fob;
+  if (n.includes("lift") || n.includes("elevator")) return CATEGORY_COLORS.lift;
+  if (n.includes("booking") || n.includes("office")) return CATEGORY_COLORS.booking_office;
+  if (n.includes("toilet") || n.includes("cubicle")) return CATEGORY_COLORS.toilet;
+  if (n.includes("coach")) return CATEGORY_COLORS.coach;
+  if (n.includes("entry")) return CATEGORY_COLORS.entry;
+  if (n.includes("exit")) return CATEGORY_COLORS.exit;
+  if (n.includes("platform")) return CATEGORY_COLORS.platform;
+  return CATEGORY_COLORS.default;
+};
 
 let layerIdCounter = 0;
 
@@ -222,7 +258,14 @@ export default function App() {
     }
     featureCollection.features = validFeatures;
 
-    const geometryTypes = new Set(validFeatures.map((f) => f.geometry.type));
+    // Process structure types (stairs→steps, escalators→steps, FOB/lift/platform→enriched)
+    const { processed: structureProcessed, hasStructures } =
+      processStructures(featureCollection);
+    featureCollection = structureProcessed;
+    // Re-assign after processing (step expansion may have added features)
+    const processedFeatures = featureCollection.features;
+
+    const geometryTypes = new Set(processedFeatures.map((f) => f.geometry.type));
 
     // Group geometry types into buckets: circular polygons, polygons, lines, points
     // A polygon is treated as "circular" if it has 32+ outer-ring vertices
@@ -236,8 +279,8 @@ export default function App() {
     const LINE_TYPES = ["LineString", "MultiLineString"];
     const POINT_TYPES = ["Point", "MultiPoint"];
 
-    const hasCircular = validFeatures.some(isCircularPolygon);
-    const hasRegularPolygon = validFeatures.some(
+    const hasCircular = processedFeatures.some(isCircularPolygon);
+    const hasRegularPolygon = processedFeatures.some(
       (f) =>
         (f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon") &&
         !isCircularPolygon(f),
@@ -257,12 +300,12 @@ export default function App() {
         filter: isCircularPolygon,
         label: "Circular Polygon",
       },
-      validFeatures.some((f) => LINE_TYPES.includes(f.geometry.type)) && {
+      processedFeatures.some((f) => LINE_TYPES.includes(f.geometry.type)) && {
         key: "line",
         filter: (f) => LINE_TYPES.includes(f.geometry.type),
         label: "Line",
       },
-      validFeatures.some((f) => POINT_TYPES.includes(f.geometry.type)) && {
+      processedFeatures.some((f) => POINT_TYPES.includes(f.geometry.type)) && {
         key: "point",
         filter: (f) => POINT_TYPES.includes(f.geometry.type),
         label: "Point",
@@ -273,7 +316,7 @@ export default function App() {
     const isMixed = buckets.length > 1;
 
     const newLayers = buckets.map(({ filter, label }, i) => {
-      const features = validFeatures.filter(filter);
+      const features = processedFeatures.filter(filter);
       const colorIndex = (geoJSONLayers.length + i) % LAYER_COLORS.length;
       return {
         id: `geojson-layer-${++layerIdCounter}`,
@@ -283,6 +326,7 @@ export default function App() {
         visible: true,
         geometryTypes: [...new Set(features.map((f) => f.geometry.type))],
         featureCount: features.length,
+        hasStructures,
       };
     });
 
@@ -294,25 +338,90 @@ export default function App() {
     const hasPolygons = Array.from(geometryTypes).some(
       (t) => t === "Polygon" || t === "MultiPolygon",
     );
-    if (hasPolygons && !is3DView) {
+    if ((hasPolygons || hasStructures) && !is3DView) {
       setIs3DView(true);
-      // Delay so maxPitch re-renders to 85, then tilt, then fly to bounds
       setTimeout(() => {
         const map = mapRef.current?.getMap();
         if (map) {
           map.easeTo({ pitch: 45, duration: 600 });
         }
         setTimeout(() => {
-          flyToBounds({ type: "FeatureCollection", features: validFeatures });
+          flyToBounds({ type: "FeatureCollection", features: processedFeatures });
         }, 100);
       }, 50);
     } else {
-      // No 3D transition needed — fly immediately (with slight delay for first load)
       setTimeout(() => {
-        flyToBounds({ type: "FeatureCollection", features: validFeatures });
+        flyToBounds({ type: "FeatureCollection", features: processedFeatures });
       }, 50);
     }
   }, [geoJSONInput, geoJSONLayers, layerName, flyToBounds, is3DView]);
+
+  // Load a pre-loaded layer directly, grouping features by name into separate colored layers
+  const loadPreloadedLayer = useCallback(
+    (index) => {
+      if (index === "") return;
+      const preset = PRELOADED_LAYERS[index];
+      if (!preset) return;
+
+      const validFeatures = preset.data.features.filter(
+        (f) => f && f.geometry && f.geometry.type && f.geometry.coordinates,
+      );
+      if (validFeatures.length === 0) return;
+
+      // Process structures (stairs→steps, escalators→steps, etc.)
+      const { processed: structureProcessed, hasStructures } =
+        processStructures({ type: "FeatureCollection", features: validFeatures });
+      const allProcessed = structureProcessed.features;
+
+      // Group features by their name property so each component gets its own color
+      const groups = {};
+      allProcessed.forEach((f) => {
+        const key = f.properties?.name || "Unnamed";
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(f);
+      });
+
+      const groupEntries = Object.entries(groups);
+      const newLayers = groupEntries.map(([groupName, features]) => {
+        const geometryTypes = [
+          ...new Set(features.map((f) => f.geometry.type)),
+        ];
+        return {
+          id: `geojson-layer-${++layerIdCounter}`,
+          name: `${preset.name} — ${groupName}`,
+          color: getCategoryColor(groupName),
+          data: { type: "FeatureCollection", features },
+          visible: true,
+          geometryTypes,
+          featureCount: features.length,
+          hasStructures,
+        };
+      });
+
+      setGeoJSONLayers((prev) => [...prev, ...newLayers]);
+
+      const hasPolygons = allProcessed.some(
+        (f) => f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon",
+      );
+      if ((hasPolygons || hasStructures) && !is3DView) {
+        setIs3DView(true);
+        setTimeout(() => {
+          const map = mapRef.current?.getMap();
+          if (map) {
+            map.easeTo({ pitch: 45, duration: 600 });
+          }
+          setTimeout(() => {
+            flyToBounds({ type: "FeatureCollection", features: allProcessed });
+          }, 100);
+        }, 50);
+      } else {
+        setTimeout(() => {
+          flyToBounds({ type: "FeatureCollection", features: allProcessed });
+        }, 50);
+      }
+    },
+    [geoJSONLayers, flyToBounds, is3DView],
+  );
 
   // Handle file upload
   const handleFileUpload = useCallback(
@@ -470,7 +579,13 @@ export default function App() {
   // Build interactive layer IDs for hover
   const interactiveLayerIds = geoJSONLayers
     .filter((l) => l.visible)
-    .flatMap((l) => [`${l.id}-fill`, `${l.id}-line`, `${l.id}-circle`]);
+    .flatMap((l) => [
+      `${l.id}-fill`,
+      `${l.id}-line`,
+      `${l.id}-circle`,
+      `${l.id}-stair-steps`,
+      `${l.id}-escalator-steps`,
+    ]);
 
   return (
     <div className="map-container">
@@ -888,6 +1003,27 @@ export default function App() {
             </div>
           </div>
 
+          {/* Pre-loaded Layers */}
+          <div className="preloaded-section">
+            <div className="samples-heading">Pre-loaded Layers:</div>
+            <Select
+              placeholder="Select a layer to add..."
+              value={null}
+              onChange={(value) => loadPreloadedLayer(value)}
+              style={{ width: "100%" }}
+              size="small"
+              options={PRELOADED_LAYERS.map((layer, idx) => ({
+                label: layer.name,
+                value: idx,
+              }))}
+              popupMatchSelectWidth={true}
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+              }
+            />
+          </div>
+
           {/* Loaded Layers List */}
           {geoJSONLayers.length > 0 && (
             <div className="layers-section">
@@ -1227,13 +1363,11 @@ export default function App() {
             const name =
               feature.properties.name ||
               feature.properties.title ||
-              feature.properties.id ||
-              feature.properties.description;
+              feature.properties.id;
             if (name) {
               setHoverInfo({
                 longitude: event.lngLat.lng,
                 latitude: event.lngLat.lat,
-                properties: feature.properties,
                 name,
               });
             } else {
@@ -1250,26 +1384,70 @@ export default function App() {
         {/* Render each GeoJSON layer */}
         {geoJSONLayers
           .filter((layer) => layer.visible)
-          .map((layer) => (
+          .map((layer) => {
+            // Check if this layer has structure features with per-feature properties
+            const hasPerFeatureProps = layer.data.features.some(
+              (f) =>
+                f.properties?.isStairStep ||
+                f.properties?.isEscalatorStep ||
+                f.properties?._structureType ||
+                f.properties?.height != null,
+            );
+
+            return (
             <Source
               key={layer.id}
               id={layer.id}
               type="geojson"
               data={layer.data}
             >
-              {/* Polygon 3D extrusion - lifted from the ground */}
+              {/* Stair steps - separate layer with per-feature height/base/color */}
+              <Layer
+                id={`${layer.id}-stair-steps`}
+                type="fill-extrusion"
+                filter={["==", ["get", "isStairStep"], true]}
+                paint={{
+                  "fill-extrusion-color": ["coalesce", ["get", "color"], layer.color],
+                  "fill-extrusion-height": ["coalesce", ["get", "height"], 8],
+                  "fill-extrusion-base": ["coalesce", ["get", "base"], 0],
+                  "fill-extrusion-opacity": 1,
+                }}
+              />
+              {/* Escalator steps - separate layer with per-feature height/base/color */}
+              <Layer
+                id={`${layer.id}-escalator-steps`}
+                type="fill-extrusion"
+                filter={["==", ["get", "isEscalatorStep"], true]}
+                paint={{
+                  "fill-extrusion-color": ["coalesce", ["get", "color"], layer.color],
+                  "fill-extrusion-height": ["coalesce", ["get", "height"], 8],
+                  "fill-extrusion-base": ["coalesce", ["get", "base"], 0],
+                  "fill-extrusion-opacity": 1,
+                }}
+              />
+              {/* Regular Polygon 3D extrusion - uses feature properties when available */}
               <Layer
                 id={`${layer.id}-fill`}
                 type="fill-extrusion"
                 filter={[
-                  "any",
-                  ["==", ["geometry-type"], "Polygon"],
-                  ["==", ["geometry-type"], "MultiPolygon"],
+                  "all",
+                  ["any",
+                    ["==", ["geometry-type"], "Polygon"],
+                    ["==", ["geometry-type"], "MultiPolygon"],
+                  ],
+                  ["!", ["coalesce", ["get", "isStairStep"], false]],
+                  ["!", ["coalesce", ["get", "isEscalatorStep"], false]],
                 ]}
                 paint={{
-                  "fill-extrusion-color": layer.color,
-                  "fill-extrusion-height": 30,
-                  "fill-extrusion-base": 0,
+                  "fill-extrusion-color": hasPerFeatureProps
+                    ? ["coalesce", ["get", "color"], layer.color]
+                    : layer.color,
+                  "fill-extrusion-height": hasPerFeatureProps
+                    ? ["coalesce", ["get", "height"], 30]
+                    : 30,
+                  "fill-extrusion-base": hasPerFeatureProps
+                    ? ["coalesce", ["get", "base"], 0]
+                    : 0,
                   "fill-extrusion-opacity": 1,
                 }}
               />
@@ -1278,12 +1456,18 @@ export default function App() {
                 id={`${layer.id}-fill-outline`}
                 type="line"
                 filter={[
-                  "any",
-                  ["==", ["geometry-type"], "Polygon"],
-                  ["==", ["geometry-type"], "MultiPolygon"],
+                  "all",
+                  ["any",
+                    ["==", ["geometry-type"], "Polygon"],
+                    ["==", ["geometry-type"], "MultiPolygon"],
+                  ],
+                  ["!", ["coalesce", ["get", "isStairStep"], false]],
+                  ["!", ["coalesce", ["get", "isEscalatorStep"], false]],
                 ]}
                 paint={{
-                  "line-color": layer.color,
+                  "line-color": hasPerFeatureProps
+                    ? ["coalesce", ["get", "color"], layer.color]
+                    : layer.color,
                   "line-width": 2,
                   "line-opacity": 1,
                 }}
@@ -1298,7 +1482,9 @@ export default function App() {
                   ["==", ["geometry-type"], "MultiLineString"],
                 ]}
                 paint={{
-                  "line-color": layer.color,
+                  "line-color": hasPerFeatureProps
+                    ? ["coalesce", ["get", "color"], layer.color]
+                    : layer.color,
                   "line-width": 5,
                   "line-opacity": 1,
                   "line-translate": [0, -20],
@@ -1315,7 +1501,9 @@ export default function App() {
                   ["==", ["geometry-type"], "MultiLineString"],
                 ]}
                 paint={{
-                  "line-color": layer.color,
+                  "line-color": hasPerFeatureProps
+                    ? ["coalesce", ["get", "color"], layer.color]
+                    : layer.color,
                   "line-width": 6,
                   "line-opacity": 0.15,
                 }}
@@ -1330,7 +1518,9 @@ export default function App() {
                   ["==", ["geometry-type"], "MultiPoint"],
                 ]}
                 paint={{
-                  "circle-color": layer.color,
+                  "circle-color": hasPerFeatureProps
+                    ? ["coalesce", ["get", "color"], layer.color]
+                    : layer.color,
                   "circle-radius": 8,
                   "circle-stroke-color": "#fff",
                   "circle-stroke-width": 2.5,
@@ -1349,7 +1539,9 @@ export default function App() {
                   ["==", ["geometry-type"], "MultiPoint"],
                 ]}
                 paint={{
-                  "circle-color": layer.color,
+                  "circle-color": hasPerFeatureProps
+                    ? ["coalesce", ["get", "color"], layer.color]
+                    : layer.color,
                   "circle-radius": 10,
                   "circle-opacity": 0.15,
                   "circle-blur": 1,
@@ -1382,10 +1574,42 @@ export default function App() {
                   "text-halo-width": 1.5,
                 }}
               />
+              {/* Labels for polygons and lines */}
+              <Layer
+                id={`${layer.id}-polygon-label`}
+                type="symbol"
+                filter={[
+                  "any",
+                  ["==", ["geometry-type"], "Polygon"],
+                  ["==", ["geometry-type"], "MultiPolygon"],
+                  ["==", ["geometry-type"], "LineString"],
+                  ["==", ["geometry-type"], "MultiLineString"],
+                ]}
+                layout={{
+                  "text-field": [
+                    "coalesce",
+                    ["get", "name"],
+                    ["get", "title"],
+                    "",
+                  ],
+                  "text-size": 11,
+                  "text-anchor": "center",
+                  "text-allow-overlap": false,
+                  "text-ignore-placement": false,
+                  "text-optional": true,
+                  "symbol-placement": "point",
+                }}
+                paint={{
+                  "text-color": "#1a1a1a",
+                  "text-halo-color": "#ffffff",
+                  "text-halo-width": 2,
+                }}
+              />
             </Source>
-          ))}
+          );
+          })}
 
-        {/* Hover Popup */}
+        {/* Hover Popup — name only */}
         {hoverInfo && (
           <Popup
             longitude={hoverInfo.longitude}
@@ -1397,20 +1621,6 @@ export default function App() {
           >
             <div className="popup-content">
               <div className="popup-name">{hoverInfo.name}</div>
-              {hoverInfo.properties &&
-                Object.entries(hoverInfo.properties)
-                  .filter(
-                    ([key]) =>
-                      !["name", "title", "id"].includes(key) &&
-                      typeof hoverInfo.properties[key] !== "object",
-                  )
-                  .slice(0, 4)
-                  .map(([key, value]) => (
-                    <div key={key} className="popup-prop">
-                      <span className="popup-prop-key">{key}:</span>{" "}
-                      {String(value)}
-                    </div>
-                  ))}
             </div>
           </Popup>
         )}
