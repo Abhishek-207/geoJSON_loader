@@ -28,13 +28,44 @@ const addVector = (p, v, scale = 1) => [
 ];
 
 /**
+ * Rotate a polygon's coordinate ring 180° around its centroid.
+ * Effectively flips which end of the polygon is "top" vs "bottom" for stairs.
+ */
+function rotateRing180(ring) {
+  let cx = 0, cy = 0;
+  const n = ring.length - 1;
+  for (let i = 0; i < n; i++) {
+    cx += ring[i][0];
+    cy += ring[i][1];
+  }
+  cx /= n;
+  cy /= n;
+  return ring.map((c) => [2 * cx - c[0], 2 * cy - c[1]]);
+}
+
+// Names of staircases that need their direction reversed (data-side quirk
+// where the polygon was drawn pointing the wrong way).
+const FLIPPED_STAIRCASE_NAMES = new Set([
+  "Staircase 2",
+  "Staircase 3",
+  "Staircase 4",
+  "Staircase 5",
+  "Staircase 9",
+  "Staircase 10",
+  "Staircase 11",
+  "Staircase 12",
+  "Staircase 13",
+]);
+
+/**
  * Scale a polygon geometry outward from its centroid.
  */
 function scalePolygon(geometry, scale) {
   if (geometry.type !== "Polygon") return geometry;
   const coords = geometry.coordinates[0];
   // Compute centroid
-  let cx = 0, cy = 0;
+  let cx = 0,
+    cy = 0;
   const n = coords.length - 1; // last coord = first coord
   for (let i = 0; i < n; i++) {
     cx += coords[i][0];
@@ -56,11 +87,11 @@ function edgeLength(a, b) {
 
 /**
  * Given the first four corners of a rectangular polygon, find:
- *  - stepEdge: the SHORT edge (direction of travel / step progression)
- *  - widthVector: the LONG edge direction (step width, how wide each step is)
+ *  - stepEdge: the LONG edge (direction of travel / step progression)
+ *  - widthVector: the SHORT edge direction (step width, how wide each step is)
  *
- * Staircases are wider than they are deep, so steps progress along the short
- * axis and span the long axis.
+ * Real staircases are LONGER along the direction of travel than they are wide,
+ * so steps progress along the long axis and each step spans the short axis.
  */
 function findStepEdgeAndWidth(coords) {
   const [p1, p2, p3, p4] = coords.slice(0, 4);
@@ -70,17 +101,17 @@ function findStepEdgeAndWidth(coords) {
     { start: p3, end: p4, length: edgeLength(p3, p4), index: 2 },
     { start: p4, end: p1, length: edgeLength(p4, p1), index: 3 },
   ];
-  edges.sort((a, b) => a.length - b.length); // shortest first
-  const shortest = edges[0]; // step progression axis
+  edges.sort((a, b) => b.length - a.length); // longest first
+  const longest = edges[0]; // direction of travel
 
-  // Width vector points along the longest (perpendicular) axis
+  // Width vector points along the SHORT (perpendicular) axis
   let widthVector;
-  if (shortest.index === 0) widthVector = [p4[0] - p1[0], p4[1] - p1[1]];
-  else if (shortest.index === 1) widthVector = [p1[0] - p2[0], p1[1] - p2[1]];
-  else if (shortest.index === 2) widthVector = [p2[0] - p3[0], p2[1] - p3[1]];
+  if (longest.index === 0) widthVector = [p4[0] - p1[0], p4[1] - p1[1]];
+  else if (longest.index === 1) widthVector = [p1[0] - p2[0], p1[1] - p2[1]];
+  else if (longest.index === 2) widthVector = [p2[0] - p3[0], p2[1] - p3[1]];
   else widthVector = [p3[0] - p4[0], p3[1] - p4[1]];
 
-  return { stepEdge: shortest, widthVector };
+  return { stepEdge: longest, widthVector };
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +157,12 @@ export function classifyFeature(feature) {
   const n = (props.name || "").toLowerCase();
   if (n.includes("staircase") || n.includes("stairs")) return "stairs";
   if (n.includes("escalator")) return "escalator";
-  if (n.includes("fob") || n.includes("foot over bridge") || n.includes("flyover")) return "fob";
+  if (
+    n.includes("fob") ||
+    n.includes("foot over bridge") ||
+    n.includes("flyover")
+  )
+    return "fob";
   if (n.includes("lift") || n.includes("elevator")) return "lift";
   if (n.includes("platform")) return "platform";
 
@@ -165,36 +201,77 @@ function createSteps(feature, kind) {
     return [feature];
   }
 
-  const coords = feature.geometry.coordinates[0];
+  let coords = feature.geometry.coordinates[0];
   if (coords.length < 4) return [feature];
 
   const defaults = DEFAULTS[kind];
   const props = feature.properties;
 
+  // Specific staircases were drawn pointing the wrong direction in the source
+  // GeoJSON — rotate them 180° so steps progress the right way.
+  if (kind === "stairs" && FLIPPED_STAIRCASE_NAMES.has(props?.name)) {
+    coords = rotateRing180(coords);
+  }
+
   // Respect GeoJSON properties, fall back to defaults
-  const totalHeight = props.height != null ? Number(props.height) : defaults.height;
+  // Staircases default to FOB top so the top step lands on the bridge.
+  const fobTop = DEFAULTS.fob.base + DEFAULTS.fob.height;
+  const totalHeight =
+    props.height != null
+      ? Number(props.height)
+      : kind === "stairs"
+        ? fobTop
+        : defaults.height;
   const baseHeight = props.base != null ? Number(props.base) : defaults.base;
-  const numSteps = props.numSteps != null ? Number(props.numSteps) : defaults.numSteps;
+  const numSteps =
+    props.numSteps != null ? Number(props.numSteps) : defaults.numSteps;
   const baseColor = props.color || defaults.color;
-  const shouldFlip = !!props.flip;
+
+  // Direction: stairs ascend by default. If `flip` is set, respect it.
+  // If floor_to > floor_from, force ascending (going up). If floor_to < floor_from, descending.
+  let shouldFlip;
+  if (props.flip != null) {
+    shouldFlip = !!props.flip;
+  } else if (props.floor_to != null && props.floor_from != null) {
+    shouldFlip = Number(props.floor_to) > Number(props.floor_from);
+  } else {
+    shouldFlip = true; // default: stairs go up
+  }
 
   const { stepEdge, widthVector } = findStepEdgeAndWidth(coords);
-  // Widen steps slightly beyond the polygon's long axis for better visibility
-  const widthScale = 1.5;
-  const scaledWidthVector = [widthVector[0] * widthScale, widthVector[1] * widthScale];
+  // Step width matches polygon footprint (no over-widening). Match Marine Lines 1
+  // visual where each step is sized to the staircase's actual physical width.
+  const widthScale = kind === "stairs" ? 0.7 : 1.5;
+  const scaledWidthVector = [
+    widthVector[0] * widthScale,
+    widthVector[1] * widthScale,
+  ];
 
   const stepFeatures = [];
   const zFightOffset = 0.6;
   const stepThickness = Math.max((totalHeight / numSteps) * 1.2, 0.5);
   const isStep = kind === "stairs" ? "isStairStep" : "isEscalatorStep";
 
+  // Offset so the step is centered on the polygon's long axis when widthScale < 1
+  const widthOffset = (1 - widthScale) / 2;
+  const offsetVector = [
+    widthVector[0] * widthOffset,
+    widthVector[1] * widthOffset,
+  ];
+
   for (let i = 0; i < numSteps; i++) {
     const progress = i / numSteps;
     const nextProgress = (i + 1) / numSteps;
 
     // Steps progress along the short edge (direction of travel)
-    const stepStart = interpolate(stepEdge.start, stepEdge.end, progress);
-    const stepEnd = interpolate(stepEdge.start, stepEdge.end, nextProgress);
+    const stepStart = addVector(
+      interpolate(stepEdge.start, stepEdge.end, progress),
+      offsetVector,
+    );
+    const stepEnd = addVector(
+      interpolate(stepEdge.start, stepEdge.end, nextProgress),
+      offsetVector,
+    );
 
     const step_p1 = stepStart;
     const step_p2 = addVector(stepStart, scaledWidthVector);
@@ -226,10 +303,16 @@ function createSteps(feature, kind) {
       stepTopHeight = stepLevel;
     }
 
+    // Only the middle step keeps the name label so the staircase shows
+    // exactly one label, not one per step.
+    const labelStepIndex = Math.floor(numSteps / 2);
+    const isLabelStep = i === labelStepIndex;
+
     stepFeatures.push({
       type: "Feature",
       properties: {
         ...props,
+        name: isLabelStep ? props.name : "",
         _originalType: kind,
         id: `${props.id || props.name || kind}_step_${i}`,
         base: stepBaseHeight,
@@ -261,8 +344,8 @@ function createEscalatorStepsFromLine(feature) {
   const length = Math.sqrt(dx * dx + dy * dy);
   if (length === 0) return [feature];
 
-  const widthVectorX = (-dy / length);
-  const widthVectorY = (dx / length);
+  const widthVectorX = -dy / length;
+  const widthVectorY = dx / length;
   // Give escalator a sensible width (~2m in degrees at typical latitudes)
   const sw = 0.000018;
 
@@ -313,11 +396,14 @@ export function processStructures(geojson) {
   // Track which features belong to pre-split stair/escalator groups
   const preSplitStepIndices = new Set();
   const preSplitGroups = []; // { indices, kind, defaults }
-  for (const [name, indices] of Object.entries(nameGroups)) {
+  for (const [, indices] of Object.entries(nameGroups)) {
     if (indices.length < 3) continue; // Single features aren't pre-split groups
     const sample = geojson.features[indices[0]];
     const kind = classifyFeature(sample);
-    if ((kind === "stairs" || kind === "escalator") && !shouldDecompose(sample)) {
+    if (
+      (kind === "stairs" || kind === "escalator") &&
+      !shouldDecompose(sample)
+    ) {
       // This is a pre-split staircase/escalator group (name-based, no explicit type)
       preSplitGroups.push({ indices, kind, defaults: DEFAULTS[kind] });
       indices.forEach((i) => preSplitStepIndices.add(i));
@@ -339,13 +425,13 @@ export function processStructures(geojson) {
     const defaults = DEFAULTS[kind];
     const decompose = shouldDecompose(feature);
 
-    if (decompose && (kind === "stairs")) {
+    if (decompose && kind === "stairs") {
       if (feature.geometry?.type === "Polygon") {
         processedFeatures.push(...createSteps(feature, "stairs"));
       } else {
         processedFeatures.push(enrichFeature(feature, defaults));
       }
-    } else if (decompose && (kind === "escalator")) {
+    } else if (decompose && kind === "escalator") {
       if (feature.geometry?.type === "LineString") {
         processedFeatures.push(...createEscalatorStepsFromLine(feature));
       } else if (feature.geometry?.type === "Polygon") {
@@ -385,9 +471,13 @@ export function processStructures(geojson) {
     // Compute centroids for spatial clustering
     const centroids = uniqueIndices.map((fi) => {
       const coords = geojson.features[fi].geometry.coordinates[0];
-      let cx = 0, cy = 0;
+      let cx = 0,
+        cy = 0;
       const n = coords.length - 1;
-      for (let j = 0; j < n; j++) { cx += coords[j][0]; cy += coords[j][1]; }
+      for (let j = 0; j < n; j++) {
+        cx += coords[j][0];
+        cy += coords[j][1];
+      }
       return [cx / n, cy / n];
     });
 
@@ -411,6 +501,9 @@ export function processStructures(geojson) {
       const stepHeight = totalHeight / numSteps;
       // Large clusters (>15 steps) need flipped direction
       const flipCluster = numSteps > 15;
+      // Only the middle step keeps the name label so each staircase shows
+      // exactly one label, not one per step.
+      const labelStepIndex = Math.floor(numSteps / 2);
 
       cluster.forEach((featureIdx, stepIdx) => {
         const feature = geojson.features[featureIdx];
@@ -435,6 +528,7 @@ export function processStructures(geojson) {
           geometry: scaledGeometry,
           properties: {
             ...props,
+            name: stepIdx === labelStepIndex ? props.name : "",
             _structureType: kind,
             height: props.height != null ? Number(props.height) : stepTopHeight,
             base: props.base != null ? Number(props.base) : stepBaseHeight,

@@ -53,37 +53,37 @@ const LAYER_COLORS = [
   "#009688", // Teal Dark
 ];
 
-// Category-based colors for pre-loaded station layers
-const CATEGORY_COLORS = {
-  staircase: "#FF9800",     // Orange
-  escalator: "#9C27B0",     // Purple
-  fob: "#4285F4",           // Blue
-  flyover: "#00BCD4",       // Cyan
-  lift: "#F44336",          // Red
-  booking_office: "#34A853", // Green
-  toilet: "#795548",        // Brown
-  platform: "#3F51B5",      // Indigo
-  coach: "#9E9E9E",         // Grey
-  entry: "#8BC34A",         // Light Green
-  exit: "#E91E63",          // Pink
-  default: "#607D8B",       // Blue Grey
+// Category definitions for pre-loaded station layers
+const CATEGORIES = {
+  escalator: { color: "#9C27B0", label: "Escalators" },
+  staircase: { color: "#FF9800", label: "Staircases" },
+  flyover: { color: "#00BCD4", label: "Flyovers" },
+  fob: { color: "#4285F4", label: "FOBs" },
+  lift: { color: "#F44336", label: "Lifts" },
+  booking_office: { color: "#34A853", label: "Booking Office" },
+  toilet: { color: "#795548", label: "Toilets" },
+  coach: { color: "#9E9E9E", label: "Coaches" },
+  entry: { color: "#8BC34A", label: "Entries" },
+  exit: { color: "#E91E63", label: "Exits" },
+  platform: { color: "#3F51B5", label: "Platforms" },
+  default: { color: "#607D8B", label: "Other" },
 };
 
-// Derive category from a component name
-const getCategoryColor = (name) => {
-  const n = name.toLowerCase();
-  if (n.includes("escalator")) return CATEGORY_COLORS.escalator;
-  if (n.includes("staircase") || n.startsWith("staircase")) return CATEGORY_COLORS.staircase;
-  if (n.includes("flyover")) return CATEGORY_COLORS.flyover;
-  if (n.includes("fob")) return CATEGORY_COLORS.fob;
-  if (n.includes("lift") || n.includes("elevator")) return CATEGORY_COLORS.lift;
-  if (n.includes("booking") || n.includes("office")) return CATEGORY_COLORS.booking_office;
-  if (n.includes("toilet") || n.includes("cubicle")) return CATEGORY_COLORS.toilet;
-  if (n.includes("coach")) return CATEGORY_COLORS.coach;
-  if (n.includes("entry")) return CATEGORY_COLORS.entry;
-  if (n.includes("exit")) return CATEGORY_COLORS.exit;
-  if (n.includes("platform")) return CATEGORY_COLORS.platform;
-  return CATEGORY_COLORS.default;
+// Derive category key from a component name
+const getCategoryKey = (name) => {
+  const n = (name || "").toLowerCase();
+  if (n.includes("escalator")) return "escalator";
+  if (n.includes("staircase") || n.startsWith("staircase")) return "staircase";
+  if (n.includes("flyover")) return "flyover";
+  if (n.includes("fob")) return "fob";
+  if (n.includes("lift") || n.includes("elevator")) return "lift";
+  if (n.includes("booking") || n.includes("office")) return "booking_office";
+  if (n.includes("toilet") || n.includes("cubicle")) return "toilet";
+  if (n.includes("coach")) return "coach";
+  if (n.includes("entry")) return "entry";
+  if (n.includes("exit")) return "exit";
+  if (n.includes("platform")) return "platform";
+  return "default";
 };
 
 let layerIdCounter = 0;
@@ -373,23 +373,25 @@ export default function App() {
         processStructures({ type: "FeatureCollection", features: validFeatures });
       const allProcessed = structureProcessed.features;
 
-      // Group features by their name property so each component gets its own color
+      // Group features by category (staircases, lifts, FOBs, etc.) — one layer per category
+      // for both visual consistency and rendering performance (fewer MapLibre sources).
       const groups = {};
       allProcessed.forEach((f) => {
-        const key = f.properties?.name || "Unnamed";
+        const name = f.properties?.name || "Unnamed";
+        const key = getCategoryKey(name);
         if (!groups[key]) groups[key] = [];
         groups[key].push(f);
       });
 
-      const groupEntries = Object.entries(groups);
-      const newLayers = groupEntries.map(([groupName, features]) => {
+      const newLayers = Object.entries(groups).map(([key, features]) => {
+        const cat = CATEGORIES[key] || CATEGORIES.default;
         const geometryTypes = [
           ...new Set(features.map((f) => f.geometry.type)),
         ];
         return {
           id: `geojson-layer-${++layerIdCounter}`,
-          name: `${preset.name} — ${groupName}`,
-          color: getCategoryColor(groupName),
+          name: `${preset.name} — ${cat.label}`,
+          color: cat.color,
           data: { type: "FeatureCollection", features },
           visible: true,
           geometryTypes,
@@ -675,333 +677,6 @@ export default function App() {
             </label>
           </div>
 
-          {/* Quick Samples */}
-          <div className="samples-section">
-            <div className="samples-heading">Quick Samples:</div>
-            <div className="samples-grid">
-              <button
-                onClick={() => {
-                  setLayerName("Sample LineString");
-                  setGeoJSONInput(
-                    JSON.stringify(
-                      {
-                        type: "FeatureCollection",
-                        features: [
-                          {
-                            type: "Feature",
-                            properties: {},
-                            geometry: {
-                              type: "LineString",
-                              coordinates: [
-                                [72.81858583220892, 18.970938810601297],
-                                [72.82015336015206, 18.970805096205382],
-                              ],
-                            },
-                          },
-                        ],
-                      },
-                      null,
-                      2,
-                    ),
-                  );
-                }}
-                className="sample-btn sample-line"
-              >
-                LineString
-              </button>
-              <button
-                onClick={() => {
-                  setLayerName("Sample Polygon");
-                  setGeoJSONInput(
-                    JSON.stringify(
-                      {
-                        type: "FeatureCollection",
-                        features: [
-                          {
-                            type: "Feature",
-                            properties: {},
-                            geometry: {
-                              type: "Polygon",
-                              coordinates: [
-                                [
-                                  [72.81896787470845, 18.969852901518877],
-                                  [72.81896787470845, 18.9692898484911],
-                                  [72.81971064808477, 18.9692898484911],
-                                  [72.81971064808477, 18.969852901518877],
-                                  [72.81896787470845, 18.969852901518877],
-                                ],
-                              ],
-                            },
-                          },
-                        ],
-                      },
-                      null,
-                      2,
-                    ),
-                  );
-                }}
-                className="sample-btn sample-polygon"
-              >
-                Polygon
-              </button>
-              <button
-                onClick={() => {
-                  setLayerName("Circular Polygon");
-                  setGeoJSONInput(
-                    JSON.stringify(
-                      {
-                        type: "FeatureCollection",
-                        features: [
-                          {
-                            type: "Feature",
-                            properties: {},
-                            geometry: {
-                              type: "Polygon",
-                              coordinates: [
-                                [
-                                  [72.82032650773957, 18.97067543239682],
-                                  [72.82028590362069, 18.970673545984745],
-                                  [72.82024569054437, 18.970667904915828],
-                                  [72.82020625578721, 18.97065856351702],
-                                  [72.82016797912989, 18.970645611751713],
-                                  [72.82013122919963, 18.97062917435331],
-                                  [72.82009635992014, 18.97060940962395],
-                                  [72.82006370710289, 18.97058650790993],
-                                  [72.82003358521321, 18.970560689768508],
-                                  [72.82000628434159, 18.970532203843806],
-                                  [72.81998206741011, 18.970501324472135],
-                                  [72.81996116764023, 18.97046834903997],
-                                  [72.81994378630688, 18.9704335951199],
-                                  [72.81993009080006, 18.970397397412174],
-                                  [72.81992021301285, 18.970360104521326],
-                                  [72.81991424807136, 18.970322075598904],
-                                  [72.81991225341854, 18.970283676884588],
-                                  [72.81991424826128, 18.97024527817912],
-                                  [72.81992021338546, 18.970207249282893],
-                                  [72.81993009134098, 18.970169956434592],
-                                  [72.81994378699535, 18.97013375878412],
-                                  [72.81996116844978, 18.97009900493381],
-                                  [72.81998206830963, 18.970066029581247],
-                                  [72.82000628529653, 18.970035150295935],
-                                  [72.82003358618685, 18.97000666446105],
-                                  [72.82006370805784, 18.969980846409445],
-                                  [72.82009636081966, 18.969957944781786],
-                                  [72.82013123000918, 18.969938180132022],
-                                  [72.82016797981835, 18.969921742803383],
-                                  [72.82020625632815, 18.969908791095325],
-                                  [72.82024569091698, 18.969899449739067],
-                                  [72.82028590381061, 18.969893808696344],
-                                  [72.82032650773957, 18.96989192229311],
-                                  [72.82036711166852, 18.969893808696344],
-                                  [72.82040732456217, 18.969899449739067],
-                                  [72.820446759151, 18.969908791095325],
-                                  [72.82048503566078, 18.969921742803383],
-                                  [72.82052178546995, 18.969938180132022],
-                                  [72.82055665465947, 18.969957944781786],
-                                  [72.8205893074213, 18.969980846409445],
-                                  [72.82061942929228, 18.97000666446105],
-                                  [72.8206467301826, 18.970035150295935],
-                                  [72.8206709471695, 18.970066029581247],
-                                  [72.82069184702935, 18.97009900493381],
-                                  [72.82070922848379, 18.97013375878412],
-                                  [72.82072292413815, 18.970169956434592],
-                                  [72.82073280209369, 18.970207249282893],
-                                  [72.82073876721785, 18.97024527817912],
-                                  [72.8207407620606, 18.970283676884588],
-                                  [72.82073876740779, 18.970322075598904],
-                                  [72.82073280246628, 18.970360104521326],
-                                  [72.82072292467907, 18.970397397412174],
-                                  [72.82070922917225, 18.9704335951199],
-                                  [72.8206918478389, 18.97046834903997],
-                                  [72.82067094806904, 18.970501324472135],
-                                  [72.82064673113754, 18.970532203843806],
-                                  [72.82061943026592, 18.970560689768508],
-                                  [72.82058930837624, 18.97058650790993],
-                                  [72.820556655559, 18.97060940962395],
-                                  [72.8205217862795, 18.97062917435331],
-                                  [72.82048503634925, 18.970645611751713],
-                                  [72.82044675969192, 18.97065856351702],
-                                  [72.82040732493476, 18.970667904915828],
-                                  [72.82036711185846, 18.970673545984745],
-                                  [72.82032650773957, 18.97067543239682],
-                                ],
-                              ],
-                            },
-                          },
-                        ],
-                      },
-                      null,
-                      2,
-                    ),
-                  );
-                }}
-                className="sample-btn sample-circle"
-              >
-                Circular Polygon
-              </button>
-              <button
-                onClick={() => {
-                  setLayerName("Sample Point");
-                  setGeoJSONInput(
-                    JSON.stringify(
-                      {
-                        type: "FeatureCollection",
-                        features: [
-                          {
-                            type: "Feature",
-                            properties: {},
-                            geometry: {
-                              type: "Point",
-                              coordinates: [
-                                72.81929631501896, 18.971355248717273,
-                              ],
-                            },
-                          },
-                        ],
-                      },
-                      null,
-                      2,
-                    ),
-                  );
-                }}
-                className="sample-btn sample-points"
-              >
-                Points
-              </button>
-              <button
-                onClick={() => {
-                  setLayerName("Mixed Features");
-                  setGeoJSONInput(
-                    JSON.stringify(
-                      {
-                        type: "FeatureCollection",
-                        features: [
-                          {
-                            type: "Feature",
-                            properties: {},
-                            geometry: {
-                              type: "Polygon",
-                              coordinates: [
-                                [
-                                  [72.81896787470845, 18.969852901518877],
-                                  [72.81896787470845, 18.9692898484911],
-                                  [72.81971064808477, 18.9692898484911],
-                                  [72.81971064808477, 18.969852901518877],
-                                  [72.81896787470845, 18.969852901518877],
-                                ],
-                              ],
-                            },
-                          },
-                          {
-                            type: "Feature",
-                            properties: {},
-                            geometry: {
-                              type: "Polygon",
-                              coordinates: [
-                                [
-                                  [72.82032650773957, 18.97067543239682],
-                                  [72.82028590362069, 18.970673545984745],
-                                  [72.82024569054437, 18.970667904915828],
-                                  [72.82020625578721, 18.97065856351702],
-                                  [72.82016797912989, 18.970645611751713],
-                                  [72.82013122919963, 18.97062917435331],
-                                  [72.82009635992014, 18.97060940962395],
-                                  [72.82006370710289, 18.97058650790993],
-                                  [72.82003358521321, 18.970560689768508],
-                                  [72.82000628434159, 18.970532203843806],
-                                  [72.81998206741011, 18.970501324472135],
-                                  [72.81996116764023, 18.97046834903997],
-                                  [72.81994378630688, 18.9704335951199],
-                                  [72.81993009080006, 18.970397397412174],
-                                  [72.81992021301285, 18.970360104521326],
-                                  [72.81991424807136, 18.970322075598904],
-                                  [72.81991225341854, 18.970283676884588],
-                                  [72.81991424826128, 18.97024527817912],
-                                  [72.81992021338546, 18.970207249282893],
-                                  [72.81993009134098, 18.970169956434592],
-                                  [72.81994378699535, 18.97013375878412],
-                                  [72.81996116844978, 18.97009900493381],
-                                  [72.81998206830963, 18.970066029581247],
-                                  [72.82000628529653, 18.970035150295935],
-                                  [72.82003358618685, 18.97000666446105],
-                                  [72.82006370805784, 18.969980846409445],
-                                  [72.82009636081966, 18.969957944781786],
-                                  [72.82013123000918, 18.969938180132022],
-                                  [72.82016797981835, 18.969921742803383],
-                                  [72.82020625632815, 18.969908791095325],
-                                  [72.82024569091698, 18.969899449739067],
-                                  [72.82028590381061, 18.969893808696344],
-                                  [72.82032650773957, 18.96989192229311],
-                                  [72.82036711166852, 18.969893808696344],
-                                  [72.82040732456217, 18.969899449739067],
-                                  [72.820446759151, 18.969908791095325],
-                                  [72.82048503566078, 18.969921742803383],
-                                  [72.82052178546995, 18.969938180132022],
-                                  [72.82055665465947, 18.969957944781786],
-                                  [72.8205893074213, 18.969980846409445],
-                                  [72.82061942929228, 18.97000666446105],
-                                  [72.8206467301826, 18.970035150295935],
-                                  [72.8206709471695, 18.970066029581247],
-                                  [72.82069184702935, 18.97009900493381],
-                                  [72.82070922848379, 18.97013375878412],
-                                  [72.82072292413815, 18.970169956434592],
-                                  [72.82073280209369, 18.970207249282893],
-                                  [72.82073876721785, 18.97024527817912],
-                                  [72.8207407620606, 18.970283676884588],
-                                  [72.82073876740779, 18.970322075598904],
-                                  [72.82073280246628, 18.970360104521326],
-                                  [72.82072292467907, 18.970397397412174],
-                                  [72.82070922917225, 18.9704335951199],
-                                  [72.8206918478389, 18.97046834903997],
-                                  [72.82067094806904, 18.970501324472135],
-                                  [72.82064673113754, 18.970532203843806],
-                                  [72.82061943026592, 18.970560689768508],
-                                  [72.82058930837624, 18.97058650790993],
-                                  [72.820556655559, 18.97060940962395],
-                                  [72.8205217862795, 18.97062917435331],
-                                  [72.82048503634925, 18.970645611751713],
-                                  [72.82044675969192, 18.97065856351702],
-                                  [72.82040732493476, 18.970667904915828],
-                                  [72.82036711185846, 18.970673545984745],
-                                  [72.82032650773957, 18.97067543239682],
-                                ],
-                              ],
-                            },
-                          },
-                          {
-                            type: "Feature",
-                            properties: {},
-                            geometry: {
-                              type: "LineString",
-                              coordinates: [
-                                [72.81858583220892, 18.970938810601297],
-                                [72.82015336015206, 18.970805096205382],
-                              ],
-                            },
-                          },
-                          {
-                            type: "Feature",
-                            properties: {},
-                            geometry: {
-                              type: "Point",
-                              coordinates: [
-                                72.81929631501896, 18.971355248717273,
-                              ],
-                            },
-                          },
-                        ],
-                      },
-                      null,
-                      2,
-                    ),
-                  );
-                }}
-                className="sample-btn sample-mixed"
-              >
-                Mixed
-              </button>
-            </div>
-          </div>
 
           {/* Pre-loaded Layers */}
           <div className="preloaded-section">
@@ -1592,7 +1267,43 @@ export default function App() {
                     ["get", "title"],
                     "",
                   ],
-                  "text-size": 11,
+                  // Platform / FOB / Building labels render bold, larger, pure black.
+                  "text-font": [
+                    "case",
+                    [
+                      "any",
+                      [
+                        "all",
+                        ["in", "platform", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                        ["!", ["in", "coach", ["downcase", ["coalesce", ["get", "name"], ""]]]],
+                      ],
+                      ["in", "fob", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "flyover", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "booking", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "office", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "toilet", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                    ],
+                    ["literal", ["Open Sans Bold"]],
+                    ["literal", ["Open Sans Regular"]],
+                  ],
+                  "text-size": [
+                    "case",
+                    [
+                      "any",
+                      [
+                        "all",
+                        ["in", "platform", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                        ["!", ["in", "coach", ["downcase", ["coalesce", ["get", "name"], ""]]]],
+                      ],
+                      ["in", "fob", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "flyover", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "booking", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "office", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "toilet", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                    ],
+                    14,
+                    11,
+                  ],
                   "text-anchor": "center",
                   "text-allow-overlap": false,
                   "text-ignore-placement": false,
@@ -1600,7 +1311,24 @@ export default function App() {
                   "symbol-placement": "point",
                 }}
                 paint={{
-                  "text-color": "#1a1a1a",
+                  "text-color": [
+                    "case",
+                    [
+                      "any",
+                      [
+                        "all",
+                        ["in", "platform", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                        ["!", ["in", "coach", ["downcase", ["coalesce", ["get", "name"], ""]]]],
+                      ],
+                      ["in", "fob", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "flyover", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "booking", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "office", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                      ["in", "toilet", ["downcase", ["coalesce", ["get", "name"], ""]]],
+                    ],
+                    "#000000",
+                    "#1a1a1a",
+                  ],
                   "text-halo-color": "#ffffff",
                   "text-halo-width": 2,
                 }}

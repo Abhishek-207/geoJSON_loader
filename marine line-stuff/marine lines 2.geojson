@@ -377,7 +377,7 @@
       "type": "Feature",
       "properties": {
         "id": "platform_3",
-        "name": "BPlatform 3",
+        "name": "Platform 3",
         "type": "platform",
         "category": "platform",
         "floor": 0,
