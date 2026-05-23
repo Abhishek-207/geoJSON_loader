@@ -19,11 +19,16 @@ const INITIAL_VIEW_STATE = {
   bearing: 0,
 };
 
+const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_API_KEY || "";
+
+// Keep "Standard" on the public CartoCDN Positron — it's lighter weight and
+// loads noticeably faster than MapTiler's vector styles. "Detailed" stays on
+// MapTiler's denser OpenStreetMap style for the full-detail look.
 const BASE_MAPS = {
   OpenStreetMap: {
-    url: `https://api.maptiler.com/maps/openstreetmap/style.json?key=${
-      import.meta.env.VITE_MAPTILER_API_KEY
-    }`,
+    url: MAPTILER_KEY
+      ? `https://api.maptiler.com/maps/openstreetmap/style.json?key=${MAPTILER_KEY}`
+      : "https://demotiles.maplibre.org/style.json",
     description: "Classic OSM style",
     label: "Detailed",
   },
@@ -33,6 +38,27 @@ const BASE_MAPS = {
     label: "Standard",
   },
 };
+
+// Map expression: true when a feature's name represents an important
+// station landmark — Platform, FOB, Flyover, Booking Office, Toilet, Lift,
+// Entry, Exit. These render in bold + larger + pure black so they stand out
+// against the regular labels (coaches, staircases, stalls, etc.).
+const NAME_LC = ["downcase", ["coalesce", ["get", "name"], ""]];
+const IS_IMPORTANT_LABEL = [
+  "any",
+  // "platform" but exclude coach names like "Platform 1 Coach 5"
+  ["all", ["in", "platform", NAME_LC], ["!", ["in", "coach", NAME_LC]]],
+  ["in", "fob", NAME_LC],
+  ["in", "flyover", NAME_LC],
+  ["in", "booking", NAME_LC],
+  ["in", "office", NAME_LC],
+  ["in", "toilet", NAME_LC],
+  // Added so Marine Lines features (Lift 1, Entry 1–7, Exit 1–7) get the
+  // same bold treatment Mumbai Central's important landmarks already enjoy.
+  ["in", "lift", NAME_LC],
+  ["in", "entry", NAME_LC],
+  ["in", "exit", NAME_LC],
+];
 
 // Color palette for loaded GeoJSON layers
 const LAYER_COLORS = [
@@ -1032,9 +1058,25 @@ export default function App() {
         minPitch={0}
         maxPitch={is3DView ? 85 : 0}
         onLoad={() => setMapLoaded(true)}
+        onError={(e) => {
+          // Surface base-map / tile-load failures so we can see what went
+          // wrong when a style fails to render (most commonly: 4xx from the
+          // glyphs/tiles endpoint, or a CORS-blocked sprite).
+          if (e?.error) console.error("[maplibre]", e.error?.message || e.error);
+        }}
         onMouseMove={(event) => {
           const feature = event.features && event.features[0];
           if (feature && feature.properties) {
+            // Suppress popup for decomposed staircase / escalator step features
+            // — those are internal renderings of a parent structure, not
+            // user-meaningful labels on their own.
+            if (
+              feature.properties.isStairStep ||
+              feature.properties.isEscalatorStep
+            ) {
+              setHoverInfo(null);
+              return;
+            }
             const name =
               feature.properties.name ||
               feature.properties.title ||
@@ -1267,43 +1309,15 @@ export default function App() {
                     ["get", "title"],
                     "",
                   ],
-                  // Platform / FOB / Building labels render bold, larger, pure black.
+                  // Platform / FOB / Building / Lift / Entry / Exit labels
+                  // render bold, larger, pure black — see IS_IMPORTANT_LABEL.
                   "text-font": [
                     "case",
-                    [
-                      "any",
-                      [
-                        "all",
-                        ["in", "platform", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                        ["!", ["in", "coach", ["downcase", ["coalesce", ["get", "name"], ""]]]],
-                      ],
-                      ["in", "fob", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "flyover", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "booking", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "office", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "toilet", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                    ],
+                    IS_IMPORTANT_LABEL,
                     ["literal", ["Open Sans Bold"]],
                     ["literal", ["Open Sans Regular"]],
                   ],
-                  "text-size": [
-                    "case",
-                    [
-                      "any",
-                      [
-                        "all",
-                        ["in", "platform", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                        ["!", ["in", "coach", ["downcase", ["coalesce", ["get", "name"], ""]]]],
-                      ],
-                      ["in", "fob", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "flyover", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "booking", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "office", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "toilet", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                    ],
-                    14,
-                    11,
-                  ],
+                  "text-size": ["case", IS_IMPORTANT_LABEL, 14, 11],
                   "text-anchor": "center",
                   "text-allow-overlap": false,
                   "text-ignore-placement": false,
@@ -1311,24 +1325,7 @@ export default function App() {
                   "symbol-placement": "point",
                 }}
                 paint={{
-                  "text-color": [
-                    "case",
-                    [
-                      "any",
-                      [
-                        "all",
-                        ["in", "platform", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                        ["!", ["in", "coach", ["downcase", ["coalesce", ["get", "name"], ""]]]],
-                      ],
-                      ["in", "fob", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "flyover", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "booking", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "office", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                      ["in", "toilet", ["downcase", ["coalesce", ["get", "name"], ""]]],
-                    ],
-                    "#000000",
-                    "#1a1a1a",
-                  ],
+                  "text-color": ["case", IS_IMPORTANT_LABEL, "#000000", "#1a1a1a"],
                   "text-halo-color": "#ffffff",
                   "text-halo-width": 2,
                 }}

@@ -1,0 +1,25 @@
+{
+  "name": "marine-lines-station",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Marine Lines Station kiosk navigation system, Mumbai",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@turf/turf": "^7.3.1",
+    "maplibre-gl": "^4.7.1",
+    "ngraph.graph": "^20.1.1",
+    "ngraph.path": "^1.6.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-map-gl": "^7.1.9"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.0.12"
+  }
+}

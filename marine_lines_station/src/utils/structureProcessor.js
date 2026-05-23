@@ -45,16 +45,7 @@ function rotateRing180(ring) {
 
 // Names of staircases that need their direction reversed (data-side quirk
 // where the polygon was drawn pointing the wrong way).
-//
-// SCOPE: this list is intentionally limited to Marine Lines Station naming
-// only ("Staircase N" — singular, no leading space). Other preloaded layers
-// (Mumbai Central, etc.) and user-uploaded GeoJSONs are NOT affected because
-// their staircase names don't match these strings.
-// Staircases and escalators that need to be flipped 180° because the source
-// polygons were drawn pointing the wrong way. Names must match the data
-// EXACTLY — Mumbai Central names do NOT have a leading space.
 const FLIPPED_STAIRCASE_NAMES = new Set([
-  // Marine Lines Station
   "Staircase 2",
   "Staircase 3",
   "Staircase 4",
@@ -64,20 +55,6 @@ const FLIPPED_STAIRCASE_NAMES = new Set([
   "Staircase 11",
   "Staircase 12",
   "Staircase 13",
-  // Mumbai Central — staircases that were rendering on the wrong side.
-  // Staircase 3 and 8 were rendering correctly already and are NOT in this set.
-  "FOBSouth Platform 1 staircase 1",
-  "FOBSouth Platform 1&2 staircase 2",
-  "FOB Centre Platform 1&2 staircase 4",
-  "FOB Centre Platform 3&4 staircase 5",
-  "FOB Centre Platform 2&3 staircase 7",
-  "FOB Centre Platform 1&2 staircase 9",
-  "FOB North Platform 1&2 staircase 10",
-  "FOB North Platform 1&2 staircase 15",
-  // Mumbai Central — escalators that were also rendering reversed.
-  // Escalator 2, 4, and 5 were rendering correctly already and are NOT here.
-  "FOB South Platform 1&2 escalator 1",
-  "FOB South Platform 3&4 escalator 3",
 ]);
 
 /**
@@ -230,13 +207,9 @@ function createSteps(feature, kind) {
   const defaults = DEFAULTS[kind];
   const props = feature.properties;
 
-  // Flip 180° if the feature's name is in the FLIPPED set. Applies to both
-  // stairs and escalators so the Mumbai Central escalators (which also render
-  // facing the wrong way) get the same treatment.
-  if (
-    (kind === "stairs" || kind === "escalator") &&
-    FLIPPED_STAIRCASE_NAMES.has(props?.name)
-  ) {
+  // Specific staircases were drawn pointing the wrong direction in the source
+  // GeoJSON — rotate them 180° so steps progress the right way.
+  if (kind === "stairs" && FLIPPED_STAIRCASE_NAMES.has(props?.name)) {
     coords = rotateRing180(coords);
   }
 
