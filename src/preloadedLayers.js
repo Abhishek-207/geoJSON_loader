@@ -3,7 +3,7 @@ import mumbaiCentralData from "./mumbaiCentral.json";
 
 const PRELOADED_LAYERS = [
   {
-    name: "Mumbai Central Station",
+    name: "Mumbai Central Station, Mumbai",
     data: mumbaiCentralData,
   },
   {
