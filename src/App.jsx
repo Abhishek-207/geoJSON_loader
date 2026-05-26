@@ -58,6 +58,14 @@ const IS_IMPORTANT_LABEL = [
   ["in", "lift", NAME_LC],
   ["in", "entry", NAME_LC],
   ["in", "exit", NAME_LC],
+  // Mumbai Central — additional building/amenity landmarks
+  ["in", "dispensary", NAME_LC],
+  ["in", "police", NAME_LC],
+  ["in", "dormetry", NAME_LC],
+  ["in", "dormitory", NAME_LC],
+  ["in", "restroom", NAME_LC],
+  ["in", "washroom", NAME_LC],
+  ["in", "urban pod", NAME_LC],
 ];
 
 // Color palette for loaded GeoJSON layers

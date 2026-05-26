@@ -163,6 +163,23 @@ const IS_IMPORTANT_LABEL = [
   ["in", "exit", NAME_LC],
 ];
 
+// Bilingual map legend. Each row binds an item type to:
+//   • icon  — emoji shown inside the color chip
+//   • color — the fill color used for that type on the 3D map, so the user
+//             can match the legend swatch to the polygon on screen
+//   • en/hi — English + Hindi labels
+const LEGEND_ITEMS = [
+  { en: "Platform",              hi: "प्लेटफार्म",              icon: "🚉", color: "#b0b0b0" },
+  { en: "Foot Overbridge (FOB)", hi: "पैदल पुल",                  icon: "🌉", color: "#59717d" },
+  { en: "Staircase",             hi: "सीढ़ी",                     icon: "🪜", color: "#089c8d" },
+  { en: "Lift / Elevator",       hi: "लिफ्ट / उद्वाहक",           icon: "🛗", color: "#4169E1" },
+  { en: "Train Coach",           hi: "रेल कोच",                   icon: "🚃", color: "#FFD700" },
+  { en: "Booking Office",        hi: "बुकिंग कार्यालय",           icon: "🎫", color: "#d4b896" },
+  { en: "Toilets",               hi: "शौचालय",                    icon: "🚻", color: "#d4b896" },
+  { en: "Entry",                 hi: "प्रवेश",                     icon: "➡",  color: "#4CAF50" },
+  { en: "Exit",                  hi: "निकास",                      icon: "🚪", color: "#4CAF50" },
+];
+
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
@@ -192,6 +209,7 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedBaseMap, setSelectedBaseMap] = useState("OpenStreetMap");
   const [is3DView, setIs3DView] = useState(true);
+  const [isLegendOpen, setIsLegendOpen] = useState(true);
 
   const [endNode, setEndNode] = useState("");
   const [selectionMode, setSelectionMode] = useState(null);
@@ -915,6 +933,71 @@ export default function App() {
           </svg>
         )}
       </button>
+
+      {/* Map Legend (bottom-right, collapsible) */}
+      {isLegendOpen ? (
+        <div className="map-legend">
+          <div className="map-legend-header">
+            <div className="map-legend-title">
+              <span className="map-legend-title-en">Map Legend</span>
+              <span className="map-legend-title-hi">मानचित्र संकेत</span>
+            </div>
+            <button
+              className="map-legend-close"
+              onClick={() => setIsLegendOpen(false)}
+              title="Hide Legend"
+              aria-label="Hide Legend"
+            >
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
+          <div className="map-legend-body">
+            {LEGEND_ITEMS.map((item) => (
+              <div key={item.en} className="map-legend-item">
+                <div
+                  className="map-legend-swatch"
+                  style={{ background: item.color }}
+                  aria-hidden
+                >
+                  <span className="map-legend-icon">{item.icon}</span>
+                </div>
+                <div className="map-legend-labels">
+                  <div className="map-legend-en">{item.en}</div>
+                  <div className="map-legend-hi">{item.hi}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <button
+          className="map-legend-fab"
+          onClick={() => setIsLegendOpen(true)}
+          title="Show Legend"
+          aria-label="Show Legend"
+        >
+          <svg
+            className="map-legend-fab-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden
+          >
+            <rect x="3" y="5"  width="4" height="4" rx="1" fill="#4285F4" />
+            <rect x="3" y="11" width="4" height="4" rx="1" fill="#34A853" />
+            <rect x="3" y="17" width="4" height="4" rx="1" fill="#EA4335" />
+            <rect x="10" y="6"  width="11" height="2" rx="1" fill="#5f6368" />
+            <rect x="10" y="12" width="11" height="2" rx="1" fill="#5f6368" />
+            <rect x="10" y="18" width="11" height="2" rx="1" fill="#5f6368" />
+          </svg>
+          <span className="map-legend-fab-label">Legend</span>
+        </button>
+      )}
 
       {/* Base Map Selector Chips */}
       <div className="base-map-chips">
